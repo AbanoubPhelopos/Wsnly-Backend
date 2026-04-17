@@ -86,3 +86,19 @@ class RouteHistory(models.Model):
                 name="history_rou_status_93f076_idx",
             ),
         ]
+
+
+class RouteFeedback(models.Model):
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="route_feedback",
+    )
+    request_id = models.CharField(max_length=36, db_index=True)
+    rating = models.IntegerField()
+    comment = models.TextField(blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        unique_together = [("user", "request_id")]

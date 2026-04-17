@@ -38,6 +38,10 @@ from src.Presentation.views.user_views import (
     FavoriteRouteDetailView,
     UserPreferencesView,
 )
+from src.Presentation.views.route_views import (
+    RouteAlternativesView,
+    RouteFeedbackView,
+)
 
 
 urlpatterns = [
@@ -86,6 +90,16 @@ urlpatterns = [
         name="route-search-confirm",
     ),
     path("api/routes/metadata", RouteMetadataView.as_view(), name="route-metadata"),
+    path(
+        "api/routes/alternatives",
+        RouteAlternativesView.as_view(),
+        name="route-alternatives",
+    ),
+    path(
+        "api/routes/feedback",
+        RouteFeedbackView.as_view(),
+        name="route-feedback",
+    ),
     path("api/stops/nearby", NearbyStopsView.as_view(), name="stops-nearby"),
     path("api/stops/<str:stop_id>", StopDetailView.as_view(), name="stop-detail"),
     path("api/lines", LinesView.as_view(), name="lines"),
