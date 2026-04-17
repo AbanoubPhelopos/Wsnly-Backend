@@ -217,6 +217,64 @@ class ProfileView(APIView):
             status=status.HTTP_404_NOT_FOUND,
         )
 
+    @extend_schema(
+        tags=["Auth"],
+        summary="Update user profile",
+        request=inline_serializer(
+            name="UpdateProfileRequest",
+            fields={
+                "first_name": serializers.CharField(required=False),
+                "last_name": serializers.CharField(required=False),
+                "mobile_number": serializers.CharField(required=False),
+                "gender": serializers.CharField(
+                    required=False, allow_null=True, allow_blank=True
+                ),
+                "address": serializers.CharField(
+                    required=False, allow_null=True, allow_blank=True
+                ),
+            },
+        ),
+        responses={200: None, 400: None},
+    )
+    def put(self, request):
+        user = request.user
+        updated_fields = []
+
+        if "first_name" in request.data:
+            user.first_name = request.data["first_name"]
+            updated_fields.append("first_name")
+        if "last_name" in request.data:
+            user.last_name = request.data["last_name"]
+            updated_fields.append("last_name")
+        if "mobile_number" in request.data:
+            user.mobile_number = request.data["mobile_number"]
+            updated_fields.append("mobile_number")
+        if "gender" in request.data:
+            user.gender = request.data["gender"]
+            updated_fields.append("gender")
+        if "address" in request.data:
+            user.address = request.data["address"]
+            updated_fields.append("address")
+
+        if not updated_fields:
+            return Response(
+                {"error": "No fields to update."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        user.save()
+        return Response(
+            {
+                "email": user.email,
+                "first_name": user.first_name,
+                "last_name": user.last_name,
+                "mobile_number": user.mobile_number,
+                "gender": user.gender,
+                "address": user.address,
+                "role": user.role,
+            }
+        )
+
 
 class ChangePasswordView(APIView):
     permission_classes = [IsAuthenticated]

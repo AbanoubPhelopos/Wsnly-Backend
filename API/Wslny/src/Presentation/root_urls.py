@@ -31,6 +31,13 @@ from src.Presentation.views.transit_views import (
     LinesView,
     LineDetailView,
 )
+from src.Presentation.views.user_views import (
+    SavedLocationsView,
+    SavedLocationDetailView,
+    FavoriteRoutesView,
+    FavoriteRouteDetailView,
+    UserPreferencesView,
+)
 
 
 urlpatterns = [
@@ -83,6 +90,31 @@ urlpatterns = [
     path("api/stops/<str:stop_id>", StopDetailView.as_view(), name="stop-detail"),
     path("api/lines", LinesView.as_view(), name="lines"),
     path("api/lines/<str:route_id>", LineDetailView.as_view(), name="line-detail"),
+    path(
+        "api/user/saved-locations",
+        SavedLocationsView.as_view(),
+        name="saved-locations",
+    ),
+    path(
+        "api/user/saved-locations/<int:pk>",
+        SavedLocationDetailView.as_view(),
+        name="saved-location-detail",
+    ),
+    path(
+        "api/user/favorites",
+        FavoriteRoutesView.as_view(),
+        name="favorite-routes",
+    ),
+    path(
+        "api/user/favorites/<int:pk>",
+        FavoriteRouteDetailView.as_view(),
+        name="favorite-route-detail",
+    ),
+    path(
+        "api/user/preferences",
+        UserPreferencesView.as_view(),
+        name="user-preferences",
+    ),
     path("api/health", HealthView.as_view(), name="health"),
     path("api/schema/", SpectacularAPIView.as_view(), name="schema"),
     path(
