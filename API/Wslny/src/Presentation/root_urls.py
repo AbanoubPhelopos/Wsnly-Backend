@@ -42,6 +42,12 @@ from src.Presentation.views.route_views import (
     RouteAlternativesView,
     RouteFeedbackView,
 )
+from src.Presentation.views.admin_management_views import (
+    AdminUserDetailView,
+    UserAnalyticsOverviewView,
+    FeedbackAnalyticsView,
+    FeedbackSummaryView,
+)
 
 
 urlpatterns = [
@@ -80,6 +86,26 @@ urlpatterns = [
         "api/admin/analytics/routes/query",
         RouteAnalyticsQueryView.as_view(),
         name="routes-analytics-query",
+    ),
+    path(
+        "api/admin/users/<int:user_id>",
+        AdminUserDetailView.as_view(),
+        name="admin-user-detail",
+    ),
+    path(
+        "api/admin/analytics/users/overview",
+        UserAnalyticsOverviewView.as_view(),
+        name="user-analytics-overview",
+    ),
+    path(
+        "api/admin/analytics/feedback",
+        FeedbackAnalyticsView.as_view(),
+        name="feedback-analytics",
+    ),
+    path(
+        "api/admin/analytics/feedback/summary",
+        FeedbackSummaryView.as_view(),
+        name="feedback-analytics-summary",
     ),
     path("api/route", RouteOrchestratorView.as_view(), name="route-orchestrator"),
     path("api/route/history", RouteHistoryView.as_view(), name="route-history"),

@@ -177,3 +177,29 @@ class RouteHistoryItemSerializer(serializers.Serializer):
     estimated_fare = serializers.FloatField(allow_null=True)
     walk_distance_meters = serializers.FloatField(allow_null=True)
     created_at = serializers.DateTimeField()
+
+
+class AdminUserDetailSerializer(serializers.Serializer):
+    id = serializers.IntegerField()
+    email = serializers.EmailField()
+    first_name = serializers.CharField()
+    last_name = serializers.CharField()
+    mobile_number = serializers.CharField()
+    gender = serializers.CharField(allow_null=True)
+    address = serializers.CharField(allow_null=True)
+    role = serializers.CharField()
+    is_active = serializers.BooleanField()
+    date_joined = serializers.DateTimeField()
+    total_routes = serializers.IntegerField()
+    saved_locations_count = serializers.IntegerField()
+    favorite_routes_count = serializers.IntegerField()
+
+
+class AdminUserUpdateSerializer(serializers.Serializer):
+    first_name = serializers.CharField(required=False)
+    last_name = serializers.CharField(required=False)
+    mobile_number = serializers.CharField(required=False)
+    gender = serializers.CharField(required=False, allow_null=True, allow_blank=True)
+    address = serializers.CharField(required=False, allow_null=True, allow_blank=True)
+    role = serializers.CharField(required=False)
+    is_active = serializers.BooleanField(required=False)
