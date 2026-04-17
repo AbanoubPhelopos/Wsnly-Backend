@@ -10,6 +10,7 @@ from src.Infrastructure.GrpcClients import get_ai_client, get_routing_client
 class HealthView(APIView):
     permission_classes = [AllowAny]
     authentication_classes = []
+    throttle_classes = []
 
     @extend_schema(
         tags=["System"],
