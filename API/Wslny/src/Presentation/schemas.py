@@ -33,60 +33,6 @@ class RouteRequestSerializer(serializers.Serializer):
     )
 
 
-class TextRouteRequestSerializer(serializers.Serializer):
-    text = serializers.CharField()
-    filter = serializers.ChoiceField(
-        choices=ROUTE_FILTER_ENUM_CHOICES,
-        required=False,
-        default=1,
-        help_text=ROUTE_FILTER_HELP_TEXT,
-    )
-    current_location = CoordinateSerializer(required=False, allow_null=True)
-
-
-class MapRouteRequestSerializer(serializers.Serializer):
-    origin = CoordinateSerializer()
-    destination = CoordinateSerializer()
-    filter = serializers.ChoiceField(
-        choices=ROUTE_FILTER_ENUM_CHOICES,
-        required=False,
-        default=1,
-        help_text=ROUTE_FILTER_HELP_TEXT,
-    )
-
-
-class RoutePointSerializer(serializers.Serializer):
-    name = serializers.CharField(allow_null=True, required=False)
-    lat = serializers.FloatField()
-    lon = serializers.FloatField()
-
-
-class RouteStepLocationSerializer(serializers.Serializer):
-    lat = serializers.FloatField()
-    lon = serializers.FloatField()
-
-
-class RouteStepSerializer(serializers.Serializer):
-    instruction = serializers.CharField()
-    distance_meters = serializers.FloatField()
-    duration_seconds = serializers.FloatField()
-    type = serializers.CharField()
-    line_name = serializers.CharField(allow_blank=True)
-    start_location = RouteStepLocationSerializer()
-    end_location = RouteStepLocationSerializer()
-
-
-class RouteBodySerializer(serializers.Serializer):
-    total_distance_meters = serializers.FloatField()
-    total_duration_seconds = serializers.FloatField()
-    steps = RouteStepSerializer(many=True)
-
-
-class RouteMetaSerializer(serializers.Serializer):
-    intent = serializers.CharField()
-    step_count = serializers.IntegerField()
-
-
 class RouteQueryPointSerializer(serializers.Serializer):
     lat = serializers.FloatField()
     lon = serializers.FloatField()
