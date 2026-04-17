@@ -4,6 +4,7 @@ from django.db.models.functions import TruncDate, TruncWeek
 from django.utils.dateparse import parse_date
 
 from src.Infrastructure.History.models import RouteHistory
+from src.Presentation.schemas import FILTER_ENUM_TO_PREFERENCE
 
 
 class RouteAnalyticsQueryValidationError(Exception):
@@ -14,14 +15,7 @@ class RouteAnalyticsQueryValidationError(Exception):
 
 
 class RouteAnalyticsService:
-    FILTER_ENUM_TO_PREFERENCE = {
-        1: RouteHistory.PREFERENCE_OPTIMAL,
-        2: RouteHistory.PREFERENCE_FASTEST,
-        3: RouteHistory.PREFERENCE_CHEAPEST,
-        4: RouteHistory.PREFERENCE_BUS_ONLY,
-        5: RouteHistory.PREFERENCE_MICROBUS_ONLY,
-        6: RouteHistory.PREFERENCE_METRO_ONLY,
-    }
+    FILTER_ENUM_TO_PREFERENCE = FILTER_ENUM_TO_PREFERENCE
     ALLOWED_PREFERENCES = set(FILTER_ENUM_TO_PREFERENCE.values())
     DEFAULT_METRICS = [
         "requests",

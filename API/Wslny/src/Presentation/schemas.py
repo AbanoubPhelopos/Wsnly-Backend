@@ -9,6 +9,8 @@ ROUTE_FILTER_ENUM_CHOICES = [
     (5, "microbus_only"),
     (6, "metro_only"),
 ]
+FILTER_ENUM_TO_PREFERENCE = {value: name for value, name in ROUTE_FILTER_ENUM_CHOICES}
+FILTER_PREFERENCE_TO_ENUM = {name: value for value, name in ROUTE_FILTER_ENUM_CHOICES}
 ROUTE_FILTER_HELP_TEXT = (
     "Route filter enum: 1=optimal, 2=fastest, 3=cheapest, "
     "4=bus_only, 5=microbus_only, 6=metro_only"
