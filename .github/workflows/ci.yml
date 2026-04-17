@@ -1,0 +1,64 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install ruff
+          pip install -r API/Wslny/requirements.txt
+        continue-on-error: true
+
+      - name: Ruff check
+        run: ruff check API/Wslny/src/
+        continue-on-error: true
+
+      - name: Python syntax check
+        run: |
+          python -m py_compile API/Wslny/src/Presentation/settings.py
+          python -m py_compile API/Wslny/src/Presentation/root_urls.py
+          python -m py_compile API/Wslny/src/Presentation/schemas.py
+          python -m py_compile API/Wslny/src/Presentation/permissions.py
+          python -m py_compile API/Wslny/src/Presentation/logging_formatter.py
+          python -m py_compile API/Wslny/src/Presentation/views/admin_views.py
+          python -m py_compile API/Wslny/src/Presentation/views/admin_management_views.py
+          python -m py_compile API/Wslny/src/Presentation/views/auth_views.py
+          python -m py_compile API/Wslny/src/Presentation/views/health_views.py
+          python -m py_compile API/Wslny/src/Presentation/views/transit_views.py
+          python -m py_compile API/Wslny/src/Presentation/views/user_views.py
+          python -m py_compile API/Wslny/src/Presentation/views/route_views.py
+          python -m py_compile API/Wslny/src/Presentation/views/orchestrator.py
+          python -m py_compile API/Wslny/src/Infrastructure/GrpcClients/__init__.py
+          python -m py_compile API/Wslny/src/Infrastructure/GrpcClients/routing_client.py
+          python -m py_compile API/Wslny/src/Infrastructure/GrpcClients/ai_client.py
+          python -m py_compile API/Wslny/src/Infrastructure/Identity/models.py
+          python -m py_compile API/Wslny/src/Infrastructure/History/models.py
+
+  docker-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build Django API image
+        run: docker build -t wslny-api-test ./API/Wslny
+
+      - name: Build Routing Engine image
+        run: docker build -t routing-engine-test ./RoutingEngine
+
+      - name: Build AI Service image
+        run: docker build -t ai-service-test -f Ai-Service/Dockerfile .

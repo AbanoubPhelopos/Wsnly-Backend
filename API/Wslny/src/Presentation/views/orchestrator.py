@@ -1,6 +1,7 @@
 from django.conf import settings
 from difflib import SequenceMatcher
 import grpc
+import logging
 import time
 from uuid import uuid4
 from rest_framework.views import APIView
@@ -28,6 +29,8 @@ from src.Presentation.schemas import (
     RouteRequestSerializer,
     RouteSuccessResponseSerializer,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class RouteOrchestratorView(APIView):
@@ -368,6 +371,28 @@ class RouteOrchestratorView(APIView):
             walk_distance,
             has_result,
         ) = self._extract_history_summary(selected_route)
+
+        logger.info(
+            "Route request completed",
+            extra={
+                "extra_fields": {
+                    "request_id": request_id,
+                    "user_id": user.id if user else None,
+                    "source_type": source_type,
+                    "status": status_value,
+                    "preference": preference,
+                    "has_result": has_result,
+                    "error_code": error_code,
+                    "total_latency_ms": round(total_latency_ms, 2)
+                    if total_latency_ms
+                    else None,
+                    "ai_latency_ms": round(ai_latency_ms, 2) if ai_latency_ms else None,
+                    "routing_latency_ms": round(routing_latency_ms, 2)
+                    if routing_latency_ms
+                    else None,
+                }
+            },
+        )
 
         RouteHistory.objects.create(
             user=user,

@@ -28,6 +28,4 @@ EXPOSE 8000
 
 ENTRYPOINT ["/app/entrypoint.sh"]
 
-# Run gunicorn (or manage.py runserver for dev)
-# CMD ["gunicorn", "--bind", "0.0.0.0:8000", "Wslny.src.Presentation.wsgi:application"]
-CMD ["python", "manage.py", "runserver", "0.0.0.0:8000"]
+CMD ["gunicorn", "-c", "gunicorn.conf.py"]

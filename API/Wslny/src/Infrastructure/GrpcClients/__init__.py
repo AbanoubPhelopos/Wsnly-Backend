@@ -1,5 +1,8 @@
+import logging
 import threading
 from django.conf import settings
+
+logger = logging.getLogger(__name__)
 
 
 _ai_client = None
@@ -21,8 +24,21 @@ def _init_ai_client():
             port=settings.AI_GRPC_PORT,
             timeout_seconds=settings.AI_GRPC_TIMEOUT_SECONDS,
         )
+        logger.info(
+            "AI gRPC client initialized",
+            extra={
+                "extra_fields": {
+                    "host": settings.AI_GRPC_HOST,
+                    "port": settings.AI_GRPC_PORT,
+                }
+            },
+        )
     except RuntimeError as exc:
         _init_errors["ai"] = str(exc)
+        logger.error(
+            "AI gRPC client initialization failed",
+            extra={"extra_fields": {"error": str(exc)}},
+        )
 
 
 def _init_routing_client():
@@ -37,8 +53,21 @@ def _init_routing_client():
             port=settings.ROUTING_GRPC_PORT,
             timeout_seconds=settings.ROUTING_GRPC_TIMEOUT_SECONDS,
         )
+        logger.info(
+            "Routing gRPC client initialized",
+            extra={
+                "extra_fields": {
+                    "host": settings.ROUTING_GRPC_HOST,
+                    "port": settings.ROUTING_GRPC_PORT,
+                }
+            },
+        )
     except RuntimeError as exc:
         _init_errors["routing"] = str(exc)
+        logger.error(
+            "Routing gRPC client initialization failed",
+            extra={"extra_fields": {"error": str(exc)}},
+        )
 
 
 def get_ai_client():

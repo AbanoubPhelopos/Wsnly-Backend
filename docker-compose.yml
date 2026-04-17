@@ -14,6 +14,15 @@ services:
       timeout: 5s
       retries: 5
 
+  redis:
+    image: redis:7-alpine
+    container_name: wslny-redis
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   routing-engine:
     build:
       context: ./RoutingEngine
@@ -64,10 +73,13 @@ services:
       - ROUTING_GRPC_HOST=routing-engine
       - ROUTING_GRPC_PORT=50051
       - GTFS_PATH=/app/gtfs
+      - REDIS_URL=redis://redis:6379/0
     volumes:
       - ./RoutingEngine/Database:/app/gtfs:ro
     depends_on:
       db:
+        condition: service_healthy
+      redis:
         condition: service_healthy
       ai-service:
         condition: service_healthy
