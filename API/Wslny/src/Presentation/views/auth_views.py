@@ -1,9 +1,13 @@
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from rest_framework import status
+from rest_framework import status, serializers
 from rest_framework.permissions import IsAuthenticated, AllowAny
-from rest_framework_simplejwt.tokens import RefreshToken
-from drf_spectacular.utils import OpenApiExample, OpenApiResponse, extend_schema
+from drf_spectacular.utils import (
+    OpenApiExample,
+    OpenApiResponse,
+    extend_schema,
+    inline_serializer,
+)
 from src.Core.Domain.Constants.Roles import Roles
 
 from src.Core.Application.Authentication.Commands.RegisterCommand import (
@@ -18,6 +22,10 @@ from src.Core.Application.Authentication.Commands.GoogleLoginCommand import (
     GoogleLoginCommand,
     GoogleLoginCommandHandler,
 )
+from src.Core.Application.Authentication.Commands.ChangePasswordCommand import (
+    ChangePasswordCommand,
+    ChangePasswordCommandHandler,
+)
 from src.Core.Application.Authentication.Queries.GetProfileQuery import (
     GetProfileQuery,
     GetProfileQueryHandler,
@@ -28,6 +36,7 @@ from src.Presentation.schemas import (
     LoginRequestSerializer,
     RegisterRequestSerializer,
     ValidationErrorsResponseSerializer,
+    MessageResponseSerializer,
 )
 
 
@@ -212,9 +221,64 @@ class ProfileView(APIView):
 class ChangePasswordView(APIView):
     permission_classes = [IsAuthenticated]
 
+    @extend_schema(
+        tags=["Auth"],
+        summary="Change password",
+        request=inline_serializer(
+            name="ChangePasswordRequest",
+            fields={
+                "current_password": serializers.CharField(),
+                "new_password": serializers.CharField(),
+            },
+        ),
+        responses={
+            200: OpenApiResponse(response=MessageResponseSerializer),
+            400: OpenApiResponse(response=ValidationErrorsResponseSerializer),
+            401: OpenApiResponse(response=ValidationErrorsResponseSerializer),
+        },
+        examples=[
+            OpenApiExample(
+                "Change Password Request",
+                value={
+                    "current_password": "OldPass123!",
+                    "new_password": "NewPass456!",
+                },
+                request_only=True,
+            ),
+        ],
+    )
     def post(self, request):
-        # Implementation of Change Password Command would go here
-        # For brevity, reusing the pattern
+        current_password = request.data.get("current_password")
+        new_password = request.data.get("new_password")
+
+        if not current_password or not new_password:
+            return Response(
+                {
+                    "errors": [
+                        {
+                            "code": "Auth.MissingFields",
+                            "message": "current_password and new_password are required.",
+                        }
+                    ]
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        command = ChangePasswordCommand(
+            user_id=request.user.id,
+            current_password=current_password,
+            new_password=new_password,
+        )
+        handler = ChangePasswordCommandHandler()
+        result = handler.handle(command)
+
+        if result.is_success:
+            return Response(
+                {"message": "Password changed successfully."},
+                status=status.HTTP_200_OK,
+            )
+
         return Response(
-            {"message": "Not implemented yet"}, status=status.HTTP_501_NOT_IMPLEMENTED
+            {"errors": [vars(e) for e in result.errors]},
+            status=status.HTTP_400_BAD_REQUEST,
         )

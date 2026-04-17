@@ -1,6 +1,7 @@
 from django.contrib import admin
 from django.urls import path
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
+from rest_framework_simplejwt.views import TokenRefreshView
 
 from src.Presentation.views.auth_views import (
     ChangePasswordView,
@@ -23,6 +24,7 @@ from src.Presentation.views.orchestrator import RouteHistoryView
 from src.Presentation.views.orchestrator import RouteSearchView
 from src.Presentation.views.orchestrator import RouteSearchConfirmView
 from src.Presentation.views.orchestrator import RouteMetadataView
+from src.Presentation.views.health_views import HealthView
 
 
 urlpatterns = [
@@ -34,6 +36,7 @@ urlpatterns = [
     path(
         "api/auth/change-password", ChangePasswordView.as_view(), name="change-password"
     ),
+    path("api/auth/refresh", TokenRefreshView.as_view(), name="token-refresh"),
     path("api/admin/change-role", ChangeUserRoleView.as_view(), name="change-role"),
     path("api/admin/users", UserListView.as_view(), name="list-users"),
     path(
@@ -70,6 +73,7 @@ urlpatterns = [
         name="route-search-confirm",
     ),
     path("api/routes/metadata", RouteMetadataView.as_view(), name="route-metadata"),
+    path("api/health", HealthView.as_view(), name="health"),
     path("api/schema/", SpectacularAPIView.as_view(), name="schema"),
     path(
         "api/docs/",
