@@ -164,6 +164,8 @@ ROUTE_LONG_WALK_THRESHOLD_METERS = float(
     os.getenv("ROUTE_LONG_WALK_THRESHOLD_METERS", "1500")
 )
 
+GTFS_PATH = os.getenv("GTFS_PATH", "")
+
 CORS_ALLOWED_ORIGINS = [
     origin.strip()
     for origin in os.getenv("CORS_ALLOWED_ORIGINS", "").split(",")

@@ -25,6 +25,12 @@ from src.Presentation.views.orchestrator import RouteSearchView
 from src.Presentation.views.orchestrator import RouteSearchConfirmView
 from src.Presentation.views.orchestrator import RouteMetadataView
 from src.Presentation.views.health_views import HealthView
+from src.Presentation.views.transit_views import (
+    NearbyStopsView,
+    StopDetailView,
+    LinesView,
+    LineDetailView,
+)
 
 
 urlpatterns = [
@@ -73,6 +79,10 @@ urlpatterns = [
         name="route-search-confirm",
     ),
     path("api/routes/metadata", RouteMetadataView.as_view(), name="route-metadata"),
+    path("api/stops/nearby", NearbyStopsView.as_view(), name="stops-nearby"),
+    path("api/stops/<str:stop_id>", StopDetailView.as_view(), name="stop-detail"),
+    path("api/lines", LinesView.as_view(), name="lines"),
+    path("api/lines/<str:route_id>", LineDetailView.as_view(), name="line-detail"),
     path("api/health", HealthView.as_view(), name="health"),
     path("api/schema/", SpectacularAPIView.as_view(), name="schema"),
     path(

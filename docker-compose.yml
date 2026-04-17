@@ -63,6 +63,9 @@ services:
       - AI_GRPC_PORT=50052
       - ROUTING_GRPC_HOST=routing-engine
       - ROUTING_GRPC_PORT=50051
+      - GTFS_PATH=/app/gtfs
+    volumes:
+      - ./RoutingEngine/Database:/app/gtfs:ro
     depends_on:
       db:
         condition: service_healthy
