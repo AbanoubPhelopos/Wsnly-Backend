@@ -202,12 +202,14 @@ void Graph::loadGTFS(const std::string &folderPath) {
   loadTrips(folderPath + "/trips.csv");
   loadStops(folderPath + "/stops.csv");
   loadStopTimes(folderPath + "/stop_times.csv");
+  loadShapes(folderPath + "/shapes.csv");
 
   if (nodes_.empty()) {
     loadRoutes(folderPath + "/routes.txt");
     loadTrips(folderPath + "/trips.txt");
     loadStops(folderPath + "/stops.txt");
     loadStopTimes(folderPath + "/stop_times.txt");
+    loadShapes(folderPath + "/shapes.txt");
   }
 
   generateTransferEdges();
@@ -273,6 +275,8 @@ void Graph::loadTrips(const std::string &filename) {
       t.route_id = route_id;
       t.service_id = cols[1];
       t.id = trip_id;
+      if (cols.size() >= 4)
+        t.shape_id = cols[3];
       trips[t.id] = t;
     }
   }
@@ -452,4 +456,79 @@ NodeID Graph::getNodeId(const std::string &query) const {
       return pair.second;
   }
   return -1;
+}
+
+void Graph::loadShapes(const std::string &filename) {
+  std::ifstream file(filename);
+  if (!file.is_open())
+    return;
+  std::string line;
+  std::getline(file, line);
+
+  while (std::getline(file, line)) {
+    auto cols = parseCSVLine(line);
+    if (cols.size() < 4)
+      continue;
+
+    std::string shape_id = cols[0];
+    double lat = 0.0, lon = 0.0;
+    int seq = 0;
+    try {
+      lat = std::stod(cols[1]);
+      lon = std::stod(cols[2]);
+      seq = std::stoi(cols[3]);
+    } catch (...) {
+      continue;
+    }
+
+    shapes_[shape_id].push_back({lat, lon, seq});
+  }
+
+  for (auto &pair : shapes_) {
+    std::sort(pair.second.begin(), pair.second.end(),
+              [](const ShapePoint &a, const ShapePoint &b) {
+                return a.sequence < b.sequence;
+              });
+  }
+
+  std::cout << "[Graph] Loaded " << shapes_.size() << " shape polylines."
+            << std::endl;
+}
+
+std::vector<ShapePoint> Graph::getShapePolyline(const std::string &shape_id,
+                                                 double startLat,
+                                                 double startLon,
+                                                 double endLat,
+                                                 double endLon) const {
+  auto it = shapes_.find(shape_id);
+  if (it == shapes_.end() || it->second.size() < 2)
+    return {};
+
+  const auto &pts = it->second;
+
+  int startIdx = 0;
+  double bestStart = INF;
+  for (int i = 0; i < (int)pts.size(); ++i) {
+    double d = haversine(startLat, startLon, pts[i].lat, pts[i].lon);
+    if (d < bestStart) {
+      bestStart = d;
+      startIdx = i;
+    }
+  }
+
+  int endIdx = (int)pts.size() - 1;
+  double bestEnd = INF;
+  for (int i = startIdx + 1; i < (int)pts.size(); ++i) {
+    double d = haversine(endLat, endLon, pts[i].lat, pts[i].lon);
+    if (d < bestEnd) {
+      bestEnd = d;
+      endIdx = i;
+    }
+  }
+
+  if (startIdx >= endIdx)
+    return {};
+
+  return std::vector<ShapePoint>(pts.begin() + startIdx,
+                                  pts.begin() + endIdx + 1);
 }

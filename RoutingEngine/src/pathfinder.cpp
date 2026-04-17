@@ -51,7 +51,7 @@ RouteResult Pathfinder::FindPath(const Graph &graph, double sLat, double sLon,
     if (canDirectWalk) {
       result.totalDuration = directDist / WALK_SPEED_MPS;
       result.segments.push_back(
-          {sLon, sLat, "Origin", dLon, dLat, "Destination", "walking", 0});
+          {sLon, sLat, "Origin", dLon, dLat, "Destination", "walking", 0, "", {}});
     }
     return result;
   }
@@ -153,7 +153,7 @@ RouteResult Pathfinder::FindPath(const Graph &graph, double sLat, double sLon,
 
   result.segments.push_back({sLon, sLat, "Origin", nodes[path[0]].lon,
                              nodes[path[0]].lat, nodes[path[0]].stop_name,
-                             "walking", 0});
+                             "walking", 0, "WALK", {}});
 
   if (path.size() > 1) {
     size_t startIdx = 0;
@@ -175,7 +175,7 @@ RouteResult Pathfinder::FindPath(const Graph &graph, double sLat, double sLon,
 
         result.segments.push_back(
             {nodes[u].lon, nodes[u].lat, nodes[u].stop_name, nodes[v].lon,
-             nodes[v].lat, nodes[v].stop_name, mode, count});
+             nodes[v].lat, nodes[v].stop_name, mode, count, currentTrip, {}});
         startIdx = i;
       }
     }
@@ -183,7 +183,7 @@ RouteResult Pathfinder::FindPath(const Graph &graph, double sLat, double sLon,
 
   result.segments.push_back({nodes[best_end_node].lon, nodes[best_end_node].lat,
                              nodes[best_end_node].stop_name, dLon, dLat,
-                             "Destination", "walking", 0});
+                             "Destination", "walking", 0, "WALK", {}});
 
   return result;
 }

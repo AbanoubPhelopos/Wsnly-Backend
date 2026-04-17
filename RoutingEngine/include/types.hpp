@@ -96,10 +96,17 @@ struct Route {
   int type; // GTFS route_type
 };
 
+struct ShapePoint {
+  double lat;
+  double lon;
+  int sequence;
+};
+
 struct Trip {
   std::string id;
   std::string route_id;
   std::string service_id;
+  std::string shape_id;
 };
 
 // --- Output Structures ---
@@ -110,8 +117,10 @@ struct RouteSegment {
   double endLon;
   double endLat;
   std::string endName;
-  std::string method; // "bus", "metro", "microbus", "walking"
+  std::string method;
   int numStops;
+  std::string trip_id;
+  std::vector<ShapePoint> polyline;
 };
 
 struct RouteResult {

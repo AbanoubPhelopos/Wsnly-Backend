@@ -51,6 +51,11 @@ class RouteOptionSegmentLocationSerializer(serializers.Serializer):
     name = serializers.CharField()
 
 
+class PolylinePointSerializer(serializers.Serializer):
+    lat = serializers.FloatField()
+    lon = serializers.FloatField()
+
+
 class RouteOptionSegmentSerializer(serializers.Serializer):
     startLocation = RouteOptionSegmentLocationSerializer()
     endLocation = RouteOptionSegmentLocationSerializer()
@@ -58,6 +63,7 @@ class RouteOptionSegmentSerializer(serializers.Serializer):
     numStops = serializers.IntegerField()
     distanceMeters = serializers.IntegerField()
     durationSeconds = serializers.IntegerField()
+    polyline = PolylinePointSerializer(many=True, required=False, default=[])
 
 
 class RouteOptionSerializer(serializers.Serializer):
