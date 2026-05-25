@@ -2,11 +2,37 @@
 
 ## Overview
 
-Wslny uses JWT (JSON Web Tokens) for authentication with role-based access control. All protected endpoints require a valid Bearer token.
+```mermaid
+graph LR
+    A["🔐 Auth System"] --> B["JWT Tokens<br/>60min access + 24h refresh"]
+    A --> C["🔑 OAuth<br/>Google Sign-In"]
+    A --> D["👥 RBAC<br/>User / Admin"]
 
-## Authentication Methods
+    style A fill:#e3f5fe,stroke:#0277bd
+    style B fill:#e8f5e9,stroke:#2e7d32
+    style C fill:#fff3e0,stroke:#e65100
+    style D fill:#fce4ec,stroke:#c2185b
+```
+
+Wslny uses **JWT (JSON Web Tokens)** for authentication with **role-based access control**. All protected endpoints require a valid Bearer token.
+
+---
+
+## 🔑 Authentication Methods
 
 ### Email/Password
+
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant A as Wslny API
+
+    U->>A: POST /api/v1/auth/register
+    A-->>U: { token, refresh_token, user }
+
+    U->>A: POST /api/v1/auth/login
+    A-->>U: { token, refresh_token, user }
+```
 
 1. **Register**: `POST /api/v1/auth/register` with email, password, name, phone
 2. **Login**: `POST /api/v1/auth/login` with email and password
@@ -14,11 +40,39 @@ Wslny uses JWT (JSON Web Tokens) for authentication with role-based access contr
 
 ### Google OAuth
 
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant G as Google
+    participant A as Wslny API
+
+    U->>G: Google Sign-In SDK
+    G-->>U: Google ID Token
+    U->>A: POST /api/v1/auth/google-login { id_token }
+    A->>G: Verify token
+    G-->>A: Token valid
+    A-->>U: { token, refresh_token, user }
+```
+
 1. Client obtains Google ID token from Google Sign-In SDK
 2. `POST /api/v1/auth/google-login` with `id_token`
 3. Server verifies token with Google, creates user if new, returns JWT
 
-## JWT Configuration
+---
+
+## 🔐 JWT Configuration
+
+```mermaid
+graph LR
+    A["JWT Config"] --> B["⏱️ Access Token<br/>60 minutes"]
+    A --> C["🔄 Refresh Token<br/>24 hours"]
+    A --> D["🔏 Algorithm<br/>HS256"]
+    A --> E["🔑 Secret<br/>DJANGO_SECRET_KEY env var"]
+
+    style A fill:#e3f5fe,stroke:#0277bd
+    style B fill:#e8f5e9,stroke:#2e7d32
+    style C fill:#e8f5e9,stroke:#2e7d32
+```
 
 | Setting | Value |
 |---------|-------|
@@ -34,9 +88,21 @@ POST /api/v1/auth/refresh
 Body: { "refresh": "<refresh_token>" }
 ```
 
-Returns a new access token. Refresh tokens themselves are not rotated.
+Returns a new access token. Refresh tokens themselves are **not rotated**.
 
-## Roles
+---
+
+## 👥 Roles
+
+```mermaid
+graph TD
+    A["👥 Roles"] --> B["👤 User<br/>Default role<br/>User endpoints"]
+    A --> C["👨‍💼 Admin<br/>Elevated role<br/>User + Admin endpoints"]
+
+    style A fill:#e3f5fe,stroke:#0277bd
+    style B fill:#e8f5e9,stroke:#2e7d32
+    style C fill:#fce4ec,stroke:#c2185b
+```
 
 | Role | Description | Access |
 |------|-------------|--------|
@@ -51,12 +117,41 @@ Returns a new access token. Refresh tokens themselves are not rotated.
 
 ### Admin Check
 
-The `IsAdminUser` permission class checks `request.user.role == "Admin"`. This is enforced at the view level.
+```mermaid
+graph LR
+    A["Request"] --> B["IsAdminUser<br/>permission class"]
+    B --> C{"user.role<br/>== 'Admin'?"}
+    C -->|Yes| D["✅ Allow"]
+    C -->|No| E["❌ Deny 403"]
 
-## Protected Endpoints
+    style B fill:#fff3e0,stroke:#e65100
+    style D fill:#e8f5e9,stroke:#2e7d32
+    style E fill:#ffebee,stroke:#c62828
+```
 
-Most endpoints require JWT authentication. The following are public:
+The `IsAdminUser` permission class checks `request.user.role == "Admin"`. Enforced at the view level.
 
+---
+
+## 🔓 Public vs Protected Endpoints
+
+```mermaid
+graph TD
+    A["Endpoints"] --> B["🔓 Public<br/>No auth required"]
+    A --> C["🔐 Protected<br/>JWT required"]
+
+    B --> D["POST /api/v1/auth/register"]
+    B --> E["POST /api/v1/auth/login"]
+    B --> F["POST /api/v1/auth/google-login"]
+    B --> G["GET /api/health"]
+    B --> H["GET /api/schema/"]
+    B --> I["GET /api/docs/"]
+
+    style B fill:#e8f5e9,stroke:#2e7d32
+    style C fill:#ffebee,stroke:#c62828
+```
+
+**Public endpoints** (no authentication required):
 - `POST /api/v1/auth/register`
 - `POST /api/v1/auth/login`
 - `POST /api/v1/auth/google-login`
@@ -64,18 +159,37 @@ Most endpoints require JWT authentication. The following are public:
 - `GET /api/schema/`
 - `GET /api/docs/`
 
-## Security Measures
+---
+
+## 🛡️ Security Measures
 
 ### Secrets Management
 
-All sensitive values are read from environment variables — never hardcoded:
+```mermaid
+graph LR
+    A["🔒 Secrets"] --> B["❌ Never in code"]
+    A --> C["✅ Always via env vars"]
 
+    style A fill:#ffebee,stroke:#c62828
+    style C fill:#e8f5e9,stroke:#2e7d32
+```
+
+All sensitive values are read from environment variables:
 - `DJANGO_SECRET_KEY`
 - `DB_PASSWORD`
 - `ADMIN_PASSWORD`
 - `GOOGLE_MAPS_API_KEY`
 
-### CORS
+### CORS Configuration
+
+```mermaid
+graph LR
+    A["🌐 CORS"] --> B["CORS_ALLOWED_ORIGINS<br/>Comma-separated<br/>env var"]
+    B --> C["Empty = Allow all<br/>Development mode"]
+    B --> D["Credentials allowed<br/>CORS_ALLOW_CREDENTIALS = True"]
+
+    style A fill:#e3f5fe,stroke:#0277bd
+```
 
 Configured via `django-cors-headers`:
 - `CORS_ALLOWED_ORIGINS`: Comma-separated list of allowed origins (env var)
@@ -84,21 +198,55 @@ Configured via `django-cors-headers`:
 
 ### Rate Limiting
 
+```mermaid
+graph LR
+    A["⚡ Rate Limiting"] --> B["👤 Anonymous<br/>30 req/min"]
+    A --> C["🔐 Authenticated<br/>60 req/min"]
+    A --> D["🏥 Health<br/>Exempt"]
+
+    style A fill:#e3f5fe,stroke:#0277bd
+    style B fill:#fff3e0,stroke:#e65100
+    style C fill:#e8f5e9,stroke:#2e7d32
+```
+
 Using Django REST Framework's built-in throttling:
 
 | User Type | Limit |
 |-----------|-------|
 | Anonymous | 30 requests/minute |
 | Authenticated | 60 requests/minute |
-| Health endpoint | Exempt |
+| Health endpoint | **Exempt** |
 
 ### Password Security
+
+```mermaid
+graph LR
+    A["🔐 Password Security"] --> B["🔏 PBKDF2 hashing"]
+    A --> C["✅ Min length validator"]
+    A --> D["❌ Common password check"]
+    A --> E["🔢 Numeric check"]
+    A --> F["🔄 Change requires<br/>current password"]
+
+    style A fill:#ffebee,stroke:#c62828
+```
 
 - Passwords are hashed using Django's built-in password hashing (PBKDF2)
 - Password validators enforce minimum length, common password check, numeric check
 - Password change requires current password verification
 
 ### Input Validation
+
+```mermaid
+graph LR
+    A["✅ Validation"] --> B["📝 All input validated<br/>before processing"]
+    A --> C["📍 Coordinates<br/>numeric values"]
+    A --> D["🔢 Filter enum<br/>1-6 range"]
+    A --> E["⭐ Rating<br/>1-5 integers"]
+    A --> F["❌ Invalid = 400<br/>BAD_REQUEST"]
+
+    style A fill:#e3f5fe,stroke:#0277bd
+    style F fill:#ffebee,stroke:#c62828
+```
 
 - All input is validated at the view level before processing
 - Coordinates are validated as numeric values

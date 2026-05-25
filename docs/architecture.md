@@ -1,275 +1,458 @@
 # Architecture
 
-This document describes the system architecture, design decisions, and how services communicate.
-
 ## System Overview
 
-Wslny is a microservices platform with three application services and two infrastructure services:
+Wslny is a **polyglot microservices platform** with three application services and two infrastructure services, orchestrated behind a single Django API gateway.
 
-```text
-┌─────────────────────────────────────────────────────────────────┐
-│                        Client (Web / Mobile)                     │
-└────────────────────────────┬────────────────────────────────────┘
-                             │ HTTP/JSON + JWT
-                             ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                    Wslny API (Django + DRF)                      │
-│                      Port 8000 · Gunicorn                        │
-│                                                                  │
-│  Layers: Presentation → Application (CQRS) → Infrastructure     │
-│                                                                  │
-│  Connects to: PostgreSQL, Redis, AI gRPC, Routing gRPC          │
-└────────────────────────────┬────────────────────────────────────┘
-                             │ gRPC / Protobuf
-              ┌──────────────┴──────────────┐
-              ▼                             ▼
-   ┌──────────────────┐          ┌──────────────────┐
-   │   Ai-Service     │          │  RoutingEngine   │
-   │   Port 50052     │          │  Port 50051      │
-   │   Python + gRPC  │          │  C++ + gRPC      │
-   └──────────────────┘          └──────────────────┘
+```mermaid
+graph TD
+    subgraph Client["🖥️ Client (Web / Mobile)"]
+        WEB[🌐 Browser]
+        MOB[📱 Mobile App]
+    end
+
+    subgraph Gateway["🐍 Wslny API (Django + DRF)"]
+        AUTH[🔐 Auth Layer<br/>JWT + OAuth]
+        ORCH[🎯 Orchestrator<br/>Route Coordination]
+        ADMIN[📊 Admin Panel<br/>Analytics]
+        TRANSIT[🗺️ Transit Data<br/>Stops, Lines]
+        USERS[👤 User Features<br/>Saved, Favorites]
+    end
+
+    subgraph Services["⚙️ Application Services"]
+        AI[🤖 AI Service<br/>Python + gRPC<br/>Port 50052]
+        ROUTING[⚡ RoutingEngine<br/>C++ + gRPC<br/>Port 50051]
+    end
+
+    subgraph Infra["📦 Infrastructure"]
+        PG[("🗄️ PostgreSQL<br/>Port 5432")]
+        REDIS[("📦 Redis<br/>Port 6379")]
+    end
+
+    WEB & MOB -->|"HTTP/JSON<br/>JWT Bearer"| AUTH
+    AUTH --> ORCH
+    ORCH --> TRANSIT
+    ORCH --> ADMIN
+    ORCH --> USERS
+
+    ORCH --> |"gRPC<br/>Text Flow"| AI
+    ORCH --> |"gRPC<br/>All Flows"| ROUTING
+
+    ORCH --> PG
+    ORCH --> REDIS
+
+    AI --> |"gRPC Response"| ORCH
+    ROUTING --> |"RouteResponse<br/>4 options"| ORCH
+
+    style Client fill:#e1f5fe,stroke:#01579b
+    style Gateway fill:#e8f5e9,stroke:#2e7d32
+    style Services fill:#fff3e0,stroke:#e65100
+    style Infra fill:#f3e5f5,stroke:#6a1b9a
 ```
+
+---
 
 ## Design Principles
 
-### Single Entry Point
+### 1. Single Entry Point
 
-All client requests go through the Wslny API. Frontends never call AI or routing services directly. This centralizes:
-- Authentication and authorization
-- Input validation
-- Error handling and formatting
-- Request history and analytics
-- Rate limiting and security
+All client requests go through the **Wslny API**. Frontends **never** call AI or routing services directly.
 
-### Separation of Concerns
+```mermaid
+graph LR
+    A[🖥️ Client] -->|"Single Domain"| B[🐍 Wslny API]
+    B -->|"Internal"| C[🤖 AI]
+    B -->|"Internal"| D[⚡ Routing]
+    B -->|"Internal"| E[🗄️ PostgreSQL]
 
-Each service has a single, well-defined responsibility:
+    style B fill:#e8f5e9,stroke:#2e7d32
+    style A fill:#e1f5fe,stroke:#01579b
+```
 
-| Service | Responsibility | Does Not Do |
+**Benefits of Single Gateway:**
+- Authentication & authorization centralized
+- Input validation in one place
+- Error handling uniform across all endpoints
+- Request history & analytics unified
+- Rate limiting at one point
+- Security enforcement consolidated
+
+### 2. Separation of Concerns
+
+| Service | Responsibility | Does NOT Do |
 |---------|---------------|-------------|
-| Wslny API | Auth, orchestration, persistence, analytics | NLP, pathfinding |
-| Ai-Service | NLP extraction, geocoding | Routing, user management |
-| RoutingEngine | A* pathfinding over GTFS | NLP, HTTP, user data |
+| **Wslny API** | Auth, orchestration, persistence, analytics | NLP, pathfinding |
+| **AI Service** | NLP extraction, geocoding | Routing, user data |
+| **RoutingEngine** | A* pathfinding over GTFS | NLP, HTTP, user data |
 
-### Communication
+### 3. Clean Architecture / DDD-lite (Django API)
 
-- **Client ↔ API**: HTTP/JSON with JWT Bearer authentication
-- **API ↔ AI**: gRPC (synchronous, used only for text flow)
-- **API ↔ Routing**: gRPC (synchronous, used for all flows)
-- **API ↔ PostgreSQL**: Django ORM with connection pooling
-- **API ↔ Redis**: django-redis for caching
+```mermaid
+graph TD
+    subgraph Presentation["📡 Presentation Layer"]
+        VIEWS[🖥️ Views<br/>API endpoints]
+        URLS[🔗 URL Routing]
+        SCHEMAS[📋 Serializers<br/>Swagger docs]
+        PERMS[🔐 Permissions<br/>IsAdminUser]
+    end
 
-### Why gRPC Internally
+    subgraph Core["🏛️ Core (Business Logic)"]
+        APP[📦 Application<br/>Use Cases (CQRS)]
+        DOMAIN[📐 Domain<br/>Constants, Errors]
+    end
 
-gRPC uses HTTP/2 with Protobuf serialization:
-- Binary serialization is smaller and faster than JSON
-- Strong typing via `.proto` contracts prevents schema drift
-- Code generation for both Python and C++ from the same proto files
-- HTTP/2 multiplexing reduces connection overhead
+    subgraph Infrastructure["🧱 Infrastructure"]
+        GRPC[📡 gRPC Clients<br/>Thread-safe singletons]
+        MODELS[🗄️ Models<br/>Django ORM]
+    end
 
-## Django API Architecture (Clean Architecture / DDD-lite)
+    VIEWS -->|"Commands/Queries"| APP
+    APP --> DOMAIN
+    VIEWS --> GRPC
+    APP --> MODELS
 
-```text
-src/
-├── Core/                          # Business logic (no framework dependencies)
-│   ├── Application/               # Use cases
-│   │   ├── Admin/                 # Commands, queries, analytics service
-│   │   ├── Authentication/        # Register, login, OAuth commands
-│   │   ├── Transit/               # GTFS data service
-│   │   └── Common/                # CQRS interfaces, Result type
-│   └── Domain/                    # Domain models, constants, errors
-│       ├── Constants/             # Roles enum
-│       └── Errors/                # Typed domain errors
-├── Infrastructure/                # External concerns
-│   ├── GrpcClients/               # Thread-safe gRPC client singletons
-│   ├── History/                   # RouteHistory, RouteFeedback models
-│   └── Identity/                  # User, SavedLocation, FavoriteRoute, UserPreferences
-└── Presentation/                  # API layer
-    ├── settings.py                # Environment-driven configuration
-    ├── root_urls.py               # All URL routing
-    ├── schemas.py                 # Shared serializers + constants
-    ├── permissions.py             # Role-based access
-    ├── logging_formatter.py       # JSON structured logging
-    └── views/                     # API view classes
+    style Presentation fill:#e1f5fe,stroke:#01579b
+    style Core fill:#e8f5e9,stroke:#2e7d32
+    style Infrastructure fill:#fff3e0,stroke:#e65100
 ```
 
-### CQRS Pattern
+---
 
-Commands and queries follow the CQRS pattern:
+## Communication Patterns
 
-```text
-Command (write)     →  ICommand  →  CommandHandler  →  Result
-Query (read)        →  IQuery<T> →  QueryHandler    →  Result<T>
+### Client ↔ API: HTTP/JSON + JWT
+
+```mermaid
+sequenceDiagram
+    participant C as Client
+    participant A as Wslny API
+
+    C->>A: POST /api/v1/auth/register
+    A-->>C: { token, refresh_token, user }
+
+    C->>A: POST /api/v1/route (with JWT)
+    A-->>C: { request_id, route, ... }
 ```
 
-Used for: registration, login, role changes, user queries.
+### API ↔ Services: gRPC (HTTP/2 + Protobuf)
 
-Analytics views and transit views use direct ORM queries (simpler for read-heavy analytics).
+```mermaid
+graph LR
+    A["🐍 Wslny API"] -->|"GetRoute()"| B["⚡ RoutingEngine"]
+    A -->|"ExtractRoute()"| C["🤖 AI Service"]
 
-### gRPC Client Singletons
-
-gRPC clients are lazy-initialized, thread-safe singletons in `Infrastructure/GrpcClients/__init__.py`:
-
-```python
-_routing_client = None          # Module-level singleton
-_routing_lock = threading.Lock() # Thread safety
-
-def get_routing_client():
-    with _routing_lock:
-        if _routing_client is None and "routing" not in _init_errors:
-            _init_routing_client()
-        return _routing_client, _init_errors.get("routing")
+    style A fill:#e8f5e9,stroke:#2e7d32
+    style B fill:#fff3e0,stroke:#e65100
+    style C fill:#fff3e0,stroke:#e65100
 ```
 
-This ensures:
-- One connection per service per Django process
-- Thread-safe initialization
-- Error capture if connection fails (service can still start)
+**Why gRPC?**
+| Benefit | Description |
+|---------|-------------|
+| **Binary serialization** | Smaller payloads, faster than JSON |
+| **Strong typing** | `.proto` contracts prevent schema drift |
+| **Code generation** | Python + C++ from same proto files |
+| **HTTP/2 multiplexing** | Reduced connection overhead |
+
+---
 
 ## Data Flow
 
 ### Text Route Request
 
-```text
-POST /api/v1/route { text: "عايز اروح العباسيه من مسكن", filter: 1 }
-    │
-    ├── 1. Validate JWT + payload
-    ├── 2. gRPC → Ai-Service: ExtractRoute(text)
-    │       Returns: from="مسكن" (30.05, 31.34), to="العباسية" (30.07, 31.28)
-    ├── 3. gRPC → RoutingEngine: GetRoute(origin, destination)
-    │       Returns: 4 routes (optimal, bus_only, metro_only, microbus_only)
-    │       Each route has segments with polyline points
-    ├── 4. Filter to requested type (filter=1 → optimal)
-    ├── 5. Estimate fare (metro tiered, bus/microbus per ride)
-    ├── 6. Persist to RouteHistory (with latency metrics)
-    └── 7. Return JSON response
+```mermaid
+sequenceDiagram
+    participant C as Client
+    participant A as Wslny API
+    participant AI as AI Service
+    participant R as RoutingEngine
+    participant DB as PostgreSQL
+
+    C->>A: POST /api/v1/route<br/>{ text: "عايز اروح العباسيه من مسكن", filter: 1 }
+    A->>A: Validate JWT + payload
+
+    A->>AI: gRPC ExtractRoute(text)
+    AI-->>A: from: "مسكن" (30.05, 31.34)<br/>to: "العباسية" (30.07, 31.28)
+
+    alt Origin missing
+        A->>A: Use current_location
+    end
+
+    A->>R: gRPC GetRoute(origin, destination)
+    R-->>A: 4 routes (optimal, bus, metro, microbus)<br/>each with segments + polylines
+
+    A->>A: Filter by filter enum
+    A->>A: Estimate fare (metro tiered, bus/microbus per ride)
+    A->>DB: Persist RouteHistory (with latency metrics)
+    A-->>C: JSON response { request_id, route, fare }
 ```
 
 ### Map Route Request
 
-```text
-POST /api/v1/route { origin: {lat, lon}, destination: {lat, lon}, filter: 3 }
-    │
-    ├── 1. Validate JWT + coordinates
-    ├── 2. Skip AI service (bypass)
-    ├── 3. gRPC → RoutingEngine: GetRoute(origin, destination)
-    ├── 4. Filter to cheapest (filter=3)
-    ├── 5. Estimate fare
-    ├── 6. Persist to RouteHistory
-    └── 7. Return JSON response
+```mermaid
+sequenceDiagram
+    participant C as Client
+    participant A as Wslny API
+    participant R as RoutingEngine
+    participant DB as PostgreSQL
+
+    C->>A: POST /api/v1/route<br/>{ origin: {lat, lon}, destination: {lat, lon}, filter: 3 }
+    A->>A: Validate JWT + coordinates
+
+    Note over A: AI Service Bypassed<br/>Direct routing call
+
+    A->>R: gRPC GetRoute(origin, destination)
+    R-->>A: 4 route options
+
+    A->>A: Filter (cheapest)
+    A->>A: Estimate fare
+    A->>DB: Persist RouteHistory
+    A-->>C: JSON response
 ```
 
 ### Search + Confirm Flow
 
-```text
-POST /api/v1/routes/search { destination_text: "العباسية", current_location: {...} }
-    │
-    ├── AI extracts destination
-    ├── Ambiguous → return suggestions
-    │
-POST /api/v1/routes/search/confirm { destination: {name, lat, lon}, current_location: {...} }
-    │
-    ├── gRPC → RoutingEngine
-    └── Return route
+```mermaid
+sequenceDiagram
+    participant C as Client
+    participant A as Wslny API
+    participant AI as AI Service
+
+    C->>A: POST /api/v1/routes/search<br/>{ destination_text: "العباسية", current_location: {...} }
+    A->>AI: gRPC ExtractRoute(text)
+
+    alt Exact match found
+        AI-->>A: destination coordinates
+        A-->>C: Route response
+    else Ambiguous
+        AI-->>A: Multiple suggestions
+        A-->>C: { suggestions: ["العباسية", "العباسية站"] }
+        C->>A: POST /api/v1/routes/search/confirm<br/>{ destination: {name, lat, lon} }
+        A-->>C: Route response
+    end
 ```
+
+---
 
 ## Database Schema
 
 ### Users & Identity
 
-```text
-User (AbstractBaseUser)
-├── email (unique, USERNAME_FIELD)
-├── first_name, last_name
-├── mobile_number
-├── gender, address
-├── role (Admin / User)
-├── is_active, is_staff
-└── date_joined
+```mermaid
+erDiagram
+    User {
+        int id PK
+        string email UK
+        string first_name
+        string last_name
+        string mobile_number
+        string gender
+        string address
+        string role
+        bool is_active
+        bool is_staff
+        datetime date_joined
+    }
 
-SavedLocation ──FK──▶ User
-├── name, lat, lon, type (home/work/custom)
-└── created_at
+    SavedLocation {
+        int id PK
+        int user_id FK
+        string name
+        float lat
+        float lon
+        string type
+        datetime created_at
+    }
 
-FavoriteRoute ──FK──▶ User
-├── name, origin_lat/lon, destination_lat/lon
-├── origin_name, destination_name
-├── route_filter (integer enum)
-└── created_at
+    FavoriteRoute {
+        int id PK
+        int user_id FK
+        string name
+        float origin_lat
+        float origin_lon
+        float destination_lat
+        float destination_lon
+        string origin_name
+        string destination_name
+        int route_filter
+        datetime created_at
+    }
 
-UserPreferences ──OneToOne──▶ User
-├── default_filter
-├── max_walk_distance
-└── accessibility_mode
+    UserPreferences {
+        int id PK
+        int user_id FK UK
+        int default_filter
+        int max_walk_distance
+        bool accessibility_mode
+    }
+
+    User ||--o{ SavedLocation : "has"
+    User ||--o{ FavoriteRoute : "has"
+    User ||--|| UserPreferences : "has"
 ```
 
 ### History & Analytics
 
-```text
-RouteHistory ──FK──▶ User (nullable)
-├── request_id (UUID, indexed)
-├── source_type (text/map)
-├── input_text
-├── preference, selected_route_type
-├── origin_name/lat/lon, destination_name/lat/lon
-├── status (success/failed)
-├── error_code, error_message
-├── total_distance_meters, total_duration_seconds
-├── step_count, estimated_fare, walk_distance_meters
-├── has_result, unresolved_reason
-├── ai_latency_ms, routing_latency_ms, total_latency_ms
-└── created_at (indexed)
+```mermaid
+erDiagram
+    RouteHistory {
+        int id PK
+        uuid request_id UK INDEX
+        int user_id FK NULL
+        string source_type
+        string input_text
+        int preference
+        string selected_route_type
+        string origin_name
+        float origin_lat
+        float origin_lon
+        string destination_name
+        float destination_lat
+        float destination_lon
+        string status
+        string error_code
+        string error_message
+        float total_distance_meters
+        int total_duration_seconds
+        int step_count
+        float estimated_fare
+        int walk_distance_meters
+        bool has_result
+        string unresolved_reason
+        float ai_latency_ms
+        float routing_latency_ms
+        float total_latency_ms
+        datetime created_at INDEX
+    }
 
-RouteFeedback ──FK──▶ User
-├── request_id (indexed)
-├── rating (1-5)
-├── comment
-├── created_at
-└── unique_together: (user, request_id)
+    RouteFeedback {
+        int id PK
+        int user_id FK
+        uuid request_id INDEX
+        int rating
+        string comment
+        datetime created_at
+    }
+
+    User ||--o{ RouteHistory : "generates"
+    User ||--o{ RouteFeedback : "submits"
+    RouteHistory ||--|| RouteFeedback : "has"
 ```
+
+---
 
 ## Caching Strategy
 
+```mermaid
+graph LR
+    subgraph Layers["Cache Layers"]
+        GTFS["📦 GTFS Data<br/>@lru_cache (process)"]
+        API["🐍 API Responses<br/>Redis (django-redis)"]
+        GEO["🗺️ Geocoding<br/>In-memory dict (process)"]
+    end
+
+    subgraph Data["Cached Data"]
+        STOPS["~646 Stops"]
+        ROUTES["~441 Routes"]
+        SHAPES["~242K Polylines"]
+        PLACES["Place → lat/lon"]
+    end
+
+    GTFS --> STOPS & ROUTES & SHAPES
+    API --> STOPS
+    GEO --> PLACES
+
+    style GTFS fill:#e1f5fe,stroke:#01579b
+    style API fill:#e8f5e9,stroke:#2e7d32
+    style GEO fill:#fff3e0,stroke:#e65100
+```
+
 | Layer | Technology | What's Cached | TTL |
 |-------|-----------|---------------|-----|
-| GTFS data | Python `@lru_cache` | Stops, routes, trips, stop_times, shapes | Process lifetime |
-| API responses | Redis (django-redis) | Configurable per endpoint | 300s (routes), 86400s (GTFS) |
-| Geocoding | Python in-memory | Place name → coordinates | Process lifetime |
+| **GTFS data** | Python `@lru_cache` | Stops, routes, trips, stop_times, shapes | Process lifetime |
+| **API responses** | Redis (django-redis) | Configurable per endpoint | 300s (routes), 86400s (GTFS) |
+| **Geocoding** | Python in-memory | Place name → coordinates | Process lifetime |
+
+---
 
 ## Security Architecture
 
+```mermaid
+graph TD
+    subgraph Security["🔐 Security Layers"]
+        AUTH["JWT Auth<br/>60min access + 24h refresh"]
+        OAUTH["Google OAuth<br/>ID token verification"]
+        RATE["Rate Limiting<br/>30/min anon, 60/min auth"]
+        CORS["CORS Policy<br/>Env-based origins"]
+        RBAC["Role-Based Access<br/>User / Admin"]
+    end
+
+    subgraph Secrets["🔒 Secrets Management"]
+        ENV["Environment Variables<br/>Never in code"]
+        KEYS["API Keys, DB passwords<br/>ADMIN_PASSWORD, DJANGO_SECRET"]
+    end
+
+    style Security fill:#ffebee,stroke:#c62828
+    style Secrets fill:#fff3e0,stroke:#e65100
+```
+
 | Concern | Implementation |
 |---------|---------------|
-| Authentication | JWT (access 60min + refresh 24h) |
-| OAuth | Google ID token verification |
-| Authorization | Role-based (User / Admin) via `IsAdminUser` permission |
-| Rate limiting | 30/min anonymous, 60/min authenticated |
-| CORS | Configurable origins via env var |
-| Secrets | All via environment variables (never in code) |
-| Admin seeding | Password from `ADMIN_PASSWORD` env var |
-| Password change | Requires current password verification |
+| **Authentication** | JWT (access 60min + refresh 24h) |
+| **OAuth** | Google ID token verification |
+| **Authorization** | Role-based (User / Admin) via `IsAdminUser` |
+| **Rate limiting** | 30/min anonymous, 60/min authenticated |
+| **CORS** | Configurable origins via env var |
+| **Secrets** | All via environment variables (never in code) |
+| **Password** | PBKDF2 hashing, change requires current password |
+
+---
 
 ## Error Handling
 
-The API uses a consistent error response format:
+```mermaid
+graph LR
+    subgraph Errors["Error Codes"]
+        E1["INVALID_REQUEST_MODE<br/>Both text & coords provided"]
+        E2["INVALID_COORDINATES<br/>Missing or non-numeric"]
+        E3["AI_EXTRACTION_FAILED<br/>AI couldn't extract locations"]
+        E4["ROUTING_ERROR<br/>Routing engine error"]
+        E5["NO_ROUTES_FOUND<br/>No viable route between points"]
+        E6["DESTINATION_AMBIGUOUS<br/>Multiple matches for text"]
+    end
 
-```json
-{
-    "request_id": "uuid",
-    "error": {
-        "code": "ERROR_CODE",
-        "message": "Human-readable description"
-    }
-}
+    subgraph Response["Standard Error Response"]
+        JSON["""request_id": "uuid"<br/>"error": {<br/>  "code": "...",<br/>  "message": "..."<br/>}"]
+    end
+
+    E1 & E2 & E3 & E4 & E5 & E6 --> JSON
+
+    style Errors fill:#ffebee,stroke:#c62828
+    style Response fill:#e1f5fe,stroke:#01579b
 ```
 
-Error codes include:
-- `INVALID_REQUEST_MODE` — Both text and coordinates provided
-- `INVALID_COORDINATES` — Missing or non-numeric coordinates
-- `AI_EXTRACTION_FAILED` — AI service could not extract locations
-- `ROUTING_ERROR` — Routing engine returned an error
-- `NO_ROUTES_FOUND` — No viable routes between locations
-- `SERVICE_CONFIGURATION_ERROR` — gRPC client not initialized
-- `DESTINATION_AMBIGUOUS` — Multiple matches for destination text
-
 All route requests (success and failure) are recorded in `RouteHistory` with latency metrics for observability.
+
+---
+
+## Environment Variables
+
+| Category | Variable | Default | Description |
+|----------|----------|---------|-------------|
+| **Security** | `DJANGO_SECRET_KEY` | insecure | Django secret key |
+| **Security** | `DEBUG` | True | Debug mode |
+| **Security** | `ALLOWED_HOSTS` | * | Comma-separated hosts |
+| **Database** | `DB_NAME` | wslny | PostgreSQL database |
+| **Database** | `DB_USER` | postgres | Database user |
+| **Database** | `DB_PASSWORD` | postgres | Database password |
+| **Database** | `DB_HOST` | db | Database host |
+| **gRPC** | `AI_GRPC_HOST` | ai-service | AI service host |
+| **gRPC** | `AI_GRPC_PORT` | 50052 | AI service port |
+| **gRPC** | `ROUTING_GRPC_HOST` | routing-engine | Routing engine host |
+| **gRPC** | `ROUTING_GRPC_PORT` | 50051 | Routing engine port |
+| **Cache** | `REDIS_URL` | redis://redis:6379/0 | Redis connection |
+| **Fares** | `FARE_BUS_PER_RIDE` | 20 | Bus fare (EGP) |
+| **Fares** | `FARE_MICROBUS_PER_RIDE` | 10 | Microbus fare (EGP) |
+| **Fares** | `FARE_METRO_UP_TO_9` | 8 | Metro ≤9 stops |
+| **Server** | `GUNICORN_WORKERS` | 4 | Gunicorn workers |
+| **Server** | `GUNICORN_THREADS` | 2 | Threads per worker |

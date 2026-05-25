@@ -1,16 +1,22 @@
 # Deployment Guide
 
-## Docker Compose (Recommended)
+## 🐳 Docker Compose (Recommended)
 
-The entire stack runs via Docker Compose with 5 services:
+```mermaid
+graph TD
+    A["🐳 Docker Compose"] --> B["📦 Services"]
+    B --> C["🗄️ db<br/>PostgreSQL 15"]
+    B --> D["📦 redis<br/>Redis 7"]
+    B --> E["⚡ routing-engine<br/>C++ gRPC :50051"]
+    B --> F["🤖 ai-service<br/>Python gRPC :50052"]
+    B --> G["🐍 web<br/>Django + Gunicorn :8000"]
 
-```text
-docker-compose.yml
-├── db          → PostgreSQL 15
-├── redis       → Redis 7 (caching)
-├── routing-engine → C++ gRPC (port 50051)
-├── ai-service  → Python gRPC (port 50052)
-└── web         → Django + Gunicorn (port 8000)
+    style A fill:#e3f5fe,stroke:#0277bd
+    style C fill:#e8f5e9,stroke:#2e7d32
+    style D fill:#fff3e0,stroke:#e65100
+    style E fill:#e8f5e9,stroke:#2e7d32
+    style F fill:#fff3e0,stroke:#e65100
+    style G fill:#e1f5fe,stroke:#01579b
 ```
 
 ### Quick Start
@@ -31,15 +37,26 @@ docker compose up --build
 curl http://localhost:8000/api/health
 ```
 
-### Service Dependencies
+---
 
-Services start in dependency order with health checks:
+## 🔄 Service Dependencies
 
-```text
-db (healthy) → web (depends on db, redis, ai-service, routing-engine)
-redis (healthy) → web
-routing-engine (healthy) → ai-service (depends on routing-engine)
-ai-service (healthy) → web
+```mermaid
+graph TD
+    A["🔄 Startup Order"] --> B["db (PostgreSQL)"]
+    B --> C["redis"]
+    C --> D["routing-engine"]
+    D --> E["ai-service"]
+    E --> F["web (Django API)"]
+
+    B -->|pg_isready| B
+    C -->|redis-cli ping| C
+    D -->|"nc -z :50051"| D
+    E -->|"socket :50052"| E
+    F -->|"socket :8000"| F
+
+    style A fill:#e3f5fe,stroke:#0277bd
+    style F fill:#e1f5fe,stroke:#01579b
 ```
 
 Each service has a health check:
@@ -49,7 +66,9 @@ Each service has a health check:
 - `ai-service`: Python socket connection on port 50052
 - `web`: Python socket connection on port 8000
 
-## Production Configuration
+---
+
+## ⚙️ Production Configuration
 
 ### Environment Variables
 
@@ -95,9 +114,19 @@ APP_LOG_LEVEL=INFO
 GOOGLE_MAPS_API_KEY=your-google-maps-key
 ```
 
-### Gunicorn Configuration
+---
 
-The API runs on Gunicorn with configurable workers:
+## 🚀 Gunicorn Configuration
+
+```mermaid
+graph LR
+    A["🐍 Gunicorn"] --> B["👷 Workers<br/>4 (GUNICORN_WORKERS)"]
+    A --> C["🧵 Threads<br/>2 (GUNICORN_THREADS)"]
+    A --> D["⏱️ Timeout<br/>120s (GUNICORN_TIMEOUT)"]
+    A --> E["📊 Max Requests<br/>1000 per worker"]
+
+    style A fill:#e1f5fe,stroke:#01579b
+```
 
 ```python
 # gunicorn.conf.py
@@ -108,21 +137,52 @@ max_requests = 1000    # Restart workers after 1000 requests (prevents memory le
 max_requests_jitter = 100  # Randomize to prevent all workers restarting at once
 ```
 
-Rule of thumb: `(2 × CPU cores) + 1` workers.
+**Rule of thumb**: `(2 × CPU cores) + 1` workers.
 
-### Database Connection Pooling
+---
 
-PostgreSQL connections are pooled with:
+## 🗄️ Database Connection Pooling
+
+```mermaid
+graph LR
+    A["🗄️ PostgreSQL"] --> B["CONN_MAX_AGE=60<br/>Connections persist 60s"]
+    A --> C["CONN_HEALTH_CHECKS=True<br/>Stale connections checked"]
+
+    style A fill:#e8f5e9,stroke:#2e7d32
+```
+
 - `CONN_MAX_AGE=60` — Connections persist for 60 seconds
 - `CONN_HEALTH_CHECKS=True` — Stale connections are checked before use
 
-### Redis Caching
+---
 
-GTFS data and route results are cached in Redis:
+## 📦 Redis Caching
+
+```mermaid
+graph LR
+    A["📦 Redis Cache"] --> B["🗺️ GTFS Data<br/>86400s TTL (24h)"]
+    A --> C["🛣️ Route Results<br/>300s TTL (5min)"]
+
+    style A fill:#fff3e0,stroke:#e65100
+    style B fill:#e8f5e9,stroke:#2e7d32
+    style C fill:#e8f5e9,stroke:#2e7d32
+```
+
 - `GTFS_CACHE_TIMEOUT=86400` (24 hours for static transit data)
 - `ROUTE_CACHE_TIMEOUT=300` (5 minutes for route results)
 
-### Structured Logging
+---
+
+## 📋 Structured Logging
+
+```mermaid
+graph LR
+    A["📋 JSON Logging"] --> B["timestamp<br/>level<br/>logger<br/>message"]
+    A --> C["request_id<br/>user_id"]
+    A --> D["status<br/>total_latency_ms"]
+
+    style A fill:#e1f5fe,stroke:#01579b
+```
 
 All logs are JSON-formatted for production log aggregation:
 
@@ -132,9 +192,6 @@ All logs are JSON-formatted for production log aggregation:
   "level": "INFO",
   "logger": "src.Presentation.views.orchestrator",
   "message": "Route request completed",
-  "module": "orchestrator",
-  "function": "_record_history",
-  "line": 380,
   "request_id": "a1b2c3d4-...",
   "user_id": 5,
   "status": "success",
@@ -142,48 +199,90 @@ All logs are JSON-formatted for production log aggregation:
 }
 ```
 
-## CI/CD Pipeline
+---
+
+## 🔄 CI/CD Pipeline
+
+```mermaid
+graph TD
+    A["🔄 CI/CD Pipeline"] --> B["📝 Lint Job"]
+    A --> C["🐳 Docker Build Job"]
+
+    B --> D["Python 3.11 setup"]
+    B --> E["Install dependencies"]
+    B --> F["Ruff linting"]
+    B --> G["py_compile syntax check"]
+
+    C --> H["Build Django API image"]
+    C --> I["Build Routing Engine image"]
+    C --> J["Build AI Service image"]
+
+    style A fill:#e3f5fe,stroke:#0277bd
+```
 
 GitHub Actions runs on every push/PR to `main`:
-
-### Lint Job
-- Python 3.11 setup
-- Install dependencies
-- Ruff linting
-- Python syntax check (py_compile on all source files)
-
-### Docker Build Job
-- Build Django API image
-- Build Routing Engine image
-- Build AI Service image
+- **Lint Job**: Python 3.11 setup, dependencies, Ruff linting, py_compile syntax check
+- **Docker Build Job**: Builds all three service images
 
 The workflow file is at `.github/workflows/ci.yml`.
 
-## Startup Process
+---
+
+## 🚀 Startup Process
+
+```mermaid
+graph TD
+    A["🚀 entrypoint.sh"] --> B["📝 Generate gRPC stubs"]
+    B --> C["🗄️ Run migrations"]
+    C --> D["👤 Seed admin user"]
+    D --> E["🐍 Start Gunicorn"]
+
+    style A fill:#e3f5fe,stroke:#0277bd
+```
 
 The Django API's `entrypoint.sh` runs on container start:
 
-```bash
 1. Generate gRPC Python stubs from proto files
-2. Run database migrations (python manage.py migrate)
-3. Seed admin user (python manage.py seed_admin)
-4. Start Gunicorn (gunicorn -c gunicorn.conf.py)
-```
+2. Run database migrations (`python manage.py migrate`)
+3. Seed admin user (`python manage.py seed_admin`)
+4. Start Gunicorn (`gunicorn -c gunicorn.conf.py`)
 
-The admin user is seeded with:
+**Admin seeded with:**
 - Email: `admin@wslny.com`
 - Password: from `ADMIN_PASSWORD` env var
 - Role: Admin
 
-## Scaling Considerations
+---
+
+## 📈 Scaling Considerations
 
 ### Horizontal Scaling
 
-- The Django API is stateless — scale by adding more web containers
+```mermaid
+graph LR
+    A["📈 Scale"] --> B["🐍 Stateless Django API<br/>Scale by adding containers"]
+    A --> C["🔗 gRPC Clients<br/>Per-process singletons"]
+    A --> D["📦 Redis<br/>Shared state across instances"]
+
+    style A fill:#e3f5fe,stroke:#0277bd
+    style B fill:#e8f5e9,stroke:#2e7d32
+```
+
+- Django API is **stateless** — scale by adding more web containers
 - gRPC client singletons are per-process (each Gunicorn worker has its own)
 - Redis provides shared state across API instances
 
 ### Database
+
+```mermaid
+graph LR
+    A["🗄️ Database Scaling"] --> B["Connection pooling<br/>reduces overhead"]
+    A --> C["PgBouncer for<br/>high load"]
+    A --> D["Partition RouteHistory<br/>by date"]
+
+    style A fill:#e3f5fe,stroke:#0277bd
+    style D fill:#fff3e0,stroke:#e65100
+```
 
 - PostgreSQL connection pooling reduces connection overhead
 - For high load, consider PgBouncer as a connection pooler
@@ -197,11 +296,15 @@ The admin user is seeded with:
 
 ### Cache Invalidation
 
-- GTFS cache: Cleared on process restart
-- Route cache: TTL-based (5 minutes default)
-- Geocoding cache: In-process, cleared on AI service restart
+| Cache | Invalidation |
+|-------|---------------|
+| GTFS cache | Cleared on process restart |
+| Route cache | TTL-based (5 minutes default) |
+| Geocoding cache | In-process, cleared on AI service restart |
 
-## Monitoring
+---
+
+## 📊 Monitoring
 
 ### Health Check
 
@@ -213,15 +316,19 @@ Returns status of all dependencies (database, AI service, routing engine).
 
 ### Metrics from Route History
 
-The `RouteHistory` model records per-request metrics:
-- `ai_latency_ms` — Time spent in AI service
-- `routing_latency_ms` — Time spent in routing engine
-- `total_latency_ms` — Total request processing time
-- `status` — Success or failure
-- `error_code` — Specific error type
+```mermaid
+graph LR
+    A["📊 RouteHistory Metrics"] --> B["ai_latency_ms<br/>AI service time"]
+    A --> C["routing_latency_ms<br/>Routing engine time"]
+    A --> D["total_latency_ms<br/>Total processing time"]
+    A --> E["status<br/>Success or failure"]
+    A --> F["error_code<br/>Specific error type"]
 
-These can be queried via the admin analytics endpoints or directly from the database.
+    style A fill:#e3f5fe,stroke:#0277bd
+```
 
-### Swagger UI
+The `RouteHistory` model records per-request metrics. Queryable via admin analytics endpoints.
+
+### API Documentation
 
 Interactive API documentation at `http://localhost:8000/api/docs/`. Supports JWT authorization for testing protected endpoints.

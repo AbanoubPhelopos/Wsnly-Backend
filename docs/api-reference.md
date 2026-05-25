@@ -1,8 +1,10 @@
 # API Reference
 
-Complete endpoint documentation with request/response examples. All versioned endpoints are prefixed with `/api/v1/`.
+> Complete endpoint documentation with request/response examples. All versioned endpoints are prefixed with `/api/v1/`.
 
-## Authentication
+---
+
+## 🔐 Authentication
 
 ### Register
 
@@ -36,6 +38,8 @@ POST /api/v1/auth/register
 }
 ```
 
+---
+
 ### Login
 
 ```
@@ -52,6 +56,8 @@ POST /api/v1/auth/login
 
 **Response (200):** Same as register.
 
+---
+
 ### Google Login
 
 ```
@@ -66,6 +72,8 @@ POST /api/v1/auth/google-login
 ```
 
 **Response (200):** Same as register. Creates user if doesn't exist.
+
+---
 
 ### Get Profile
 
@@ -87,6 +95,8 @@ Authorization: Bearer <token>
 }
 ```
 
+---
+
 ### Update Profile
 
 ```
@@ -95,6 +105,8 @@ Authorization: Bearer <token>
 ```
 
 **Request:** Any subset of profile fields.
+
+---
 
 ### Change Password
 
@@ -111,6 +123,8 @@ Authorization: Bearer <token>
 }
 ```
 
+---
+
 ### Refresh Token
 
 ```
@@ -126,7 +140,7 @@ POST /api/v1/auth/refresh
 
 ---
 
-## Routing
+## 🛣️ Routing
 
 ### Get Route (Main Endpoint)
 
@@ -205,7 +219,7 @@ Authorization: Bearer <token>
 }
 ```
 
-**Error Response (any):**
+**Error Response:**
 ```json
 {
   "request_id": "uuid",
@@ -215,6 +229,8 @@ Authorization: Bearer <token>
   }
 }
 ```
+
+---
 
 ### Search Destination
 
@@ -232,22 +248,20 @@ Authorization: Bearer <token>
 }
 ```
 
-**Direct match response (200):** Returns route directly (same format as `/api/v1/route`).
+**Direct match response (200):** Returns route directly.
 
 **Suggestion response (200):**
 ```json
 {
   "request_id": "uuid",
   "suggestions": [
-    {
-      "name": "العباسية",
-      "lat": 30.0728,
-      "lon": 31.2841
-    }
+    { "name": "العباسية", "lat": 30.0728, "lon": 31.2841 }
   ],
   "message": "Do you mean?"
 }
 ```
+
+---
 
 ### Confirm Search
 
@@ -267,6 +281,8 @@ Authorization: Bearer <token>
 
 **Response:** Same as route success response.
 
+---
+
 ### Route Metadata
 
 ```
@@ -275,6 +291,8 @@ Authorization: Bearer <token>
 ```
 
 Returns available filter options, transport methods, and query parameters.
+
+---
 
 ### Route Alternatives
 
@@ -320,6 +338,8 @@ Authorization: Bearer <token>
 }
 ```
 
+---
+
 ### Route Feedback
 
 ```
@@ -347,6 +367,8 @@ Authorization: Bearer <token>
 
 Submitting feedback for the same request_id again updates the existing feedback.
 
+---
+
 ### Route History
 
 ```
@@ -358,7 +380,7 @@ Authorization: Bearer <token>
 
 ---
 
-## Transit Data
+## 🗺️ Transit Data
 
 ### Nearby Stops
 
@@ -378,16 +400,14 @@ Authorization: Bearer <token>
       "lon": 31.24,
       "distance_meters": 150.3,
       "lines": [
-        {
-          "route_id": "route_456",
-          "route_short_name": "97",
-          "transport_mode": "bus"
-        }
+        { "route_id": "route_456", "route_short_name": "97", "transport_mode": "bus" }
       ]
     }
   ]
 }
 ```
+
+---
 
 ### Stop Detail
 
@@ -408,6 +428,8 @@ Authorization: Bearer <token>
   ]
 }
 ```
+
+---
 
 ### All Lines
 
@@ -430,6 +452,8 @@ Authorization: Bearer <token>
   ]
 }
 ```
+
+---
 
 ### Line Detail
 
@@ -460,17 +484,17 @@ Authorization: Bearer <token>
 
 ---
 
-## User Features
+## 👤 User Features
 
 ### Saved Locations
 
-```
-GET  /api/v1/user/saved-locations          # List all
-POST /api/v1/user/saved-locations          # Create
-GET  /api/v1/user/saved-locations/<id>     # Get one
-PUT  /api/v1/user/saved-locations/<id>     # Update
-DELETE /api/v1/user/saved-locations/<id>   # Delete
-```
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/v1/user/saved-locations` | List all |
+| POST | `/api/v1/user/saved-locations` | Create |
+| GET | `/api/v1/user/saved-locations/<id>` | Get one |
+| PUT | `/api/v1/user/saved-locations/<id>` | Update |
+| DELETE | `/api/v1/user/saved-locations/<id>` | Delete |
 
 **Create Request:**
 ```json
@@ -484,14 +508,16 @@ DELETE /api/v1/user/saved-locations/<id>   # Delete
 
 Types: `home`, `work`, `custom`
 
+---
+
 ### Favorite Routes
 
-```
-GET    /api/v1/user/favorites              # List all
-POST   /api/v1/user/favorites              # Create
-GET    /api/v1/user/favorites/<id>         # Get one
-DELETE /api/v1/user/favorites/<id>         # Delete
-```
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/v1/user/favorites` | List all |
+| POST | `/api/v1/user/favorites` | Create |
+| GET | `/api/v1/user/favorites/<id>` | Get one |
+| DELETE | `/api/v1/user/favorites/<id>` | Delete |
 
 **Create Request:**
 ```json
@@ -507,12 +533,14 @@ DELETE /api/v1/user/favorites/<id>         # Delete
 }
 ```
 
+---
+
 ### User Preferences
 
-```
-GET /api/v1/user/preferences               # Get preferences
-PUT /api/v1/user/preferences               # Update preferences
-```
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/v1/user/preferences` | Get preferences |
+| PUT | `/api/v1/user/preferences` | Update preferences |
 
 **Response:**
 ```json
@@ -525,81 +553,45 @@ PUT /api/v1/user/preferences               # Update preferences
 
 ---
 
-## Admin Endpoints
+## 👨‍💼 Admin Endpoints
 
-All admin endpoints require `Admin` role.
+> **Note**: All admin endpoints require `Admin` role.
 
 ### User Management
 
-```
-GET    /api/v1/admin/users                 # List all users
-GET    /api/v1/admin/users/<id>            # User detail + stats
-PUT    /api/v1/admin/users/<id>            # Update user (name, role, is_active)
-DELETE /api/v1/admin/users/<id>            # Deactivate user (soft delete)
-POST   /api/v1/admin/change-role           # Change user role
-```
-
-### Route Analytics
-
-```
-GET /api/v1/admin/analytics/routes/overview
-```
-
-Query params: `source`, `status`, `filter`, `from_date`, `to_date`
-
-Response includes: totals, source_breakdown, averages, daily_usage.
-
-```
-GET /api/v1/admin/analytics/routes/top-routes
-```
-
-Returns most requested origin→destination pairs with avg duration/distance.
-
-```
-GET /api/v1/admin/analytics/routes/filters
-```
-
-Returns top-used filter with statistics.
-
-```
-GET /api/v1/admin/analytics/routes/unresolved
-```
-
-Returns failed queries, unresolved reasons, and long-walk statistics.
-
-```
-GET /api/v1/admin/analytics/routes/query
-```
-
-Generic composable analytics query. Supports `metrics`, `group_by`, `sort`, `order`, `limit`, `offset`.
-
-### User Analytics
-
-```
-GET /api/v1/admin/analytics/users/overview
-```
-
-Returns: total users, active/inactive counts, user growth timeline, top users by route count.
-
-### Feedback Analytics
-
-```
-GET /api/v1/admin/analytics/feedback
-```
-
-Query params: `min_rating`, `max_rating`, `user_id`, `from_date`, `to_date`, `limit`, `offset`
-
-Returns paginated feedback list.
-
-```
-GET /api/v1/admin/analytics/feedback/summary
-```
-
-Returns: total feedback count, average rating, rating distribution (1-5).
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/v1/admin/users` | List all users |
+| GET | `/api/v1/admin/users/<id>` | User detail + stats |
+| PUT | `/api/v1/admin/users/<id>` | Update user |
+| DELETE | `/api/v1/admin/users/<id>` | Deactivate user |
+| POST | `/api/v1/admin/change-role` | Change user role |
 
 ---
 
-## System
+### Route Analytics
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/v1/admin/analytics/routes/overview` | Route analytics summary |
+| GET | `/api/v1/admin/analytics/routes/top-routes` | Top requested O→D pairs |
+| GET | `/api/v1/admin/analytics/routes/filters` | Filter usage statistics |
+| GET | `/api/v1/admin/analytics/routes/unresolved` | Failed queries analysis |
+| GET | `/api/v1/admin/analytics/routes/query` | Generic composable analytics |
+| GET | `/api/v1/admin/analytics/users/overview` | User growth + activity |
+
+---
+
+### Feedback Analytics
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/v1/admin/analytics/feedback` | Paginated feedback list |
+| GET | `/api/v1/admin/analytics/feedback/summary` | Rating distribution + averages |
+
+---
+
+## 🔧 System
 
 ### Health Check
 
@@ -622,9 +614,11 @@ No auth required. Not rate-limited.
 
 Returns `503` with `status: "degraded"` if any dependency is unhealthy.
 
+---
+
 ### API Documentation
 
-```
-GET /api/schema/     # OpenAPI 3 schema (JSON)
-GET /api/docs/       # Swagger UI (interactive)
-```
+| Endpoint | Description |
+|----------|-------------|
+| `GET /api/schema/` | OpenAPI 3 schema (JSON) |
+| `GET /api/docs/` | Swagger UI (interactive) |

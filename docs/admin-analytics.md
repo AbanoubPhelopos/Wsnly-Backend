@@ -2,13 +2,27 @@
 
 ## Overview
 
-The admin system provides user management, route analytics, and feedback analysis for platform operators.
+```mermaid
+graph LR
+    A["👨‍💼 Admin"] --> B["📊 Analytics Dashboard"]
+    A --> C["👥 User Management"]
+    A --> D["🛣️ Route Analytics"]
+    A --> E["⭐ Feedback Analysis"]
 
-## Access Control
+    style A fill:#e3f5fe,stroke:#0277bd
+    style B fill:#e8f5e9,stroke:#2e7d32
+    style C fill:#fff3e0,stroke:#e65100
+    style D fill:#e1f5fe,stroke:#01579b
+    style E fill:#fce4ec,stroke:#c2185b
+```
 
-All admin endpoints require the `Admin` role. The `IsAdminUser` permission class is enforced on every admin view.
+The admin system provides **user management**, **route analytics**, and **feedback analysis** for platform operators.
 
-## User Management
+> **Access Control**: All admin endpoints require the `Admin` role. The `IsAdminUser` permission class is enforced on every admin view.
+
+---
+
+## 👥 User Management
 
 ### List Users
 
@@ -24,8 +38,7 @@ Returns all registered users with basic info (id, email, name, role).
 GET /api/v1/admin/users/<id>
 ```
 
-Returns full user profile plus computed stats:
-
+**Response:**
 ```json
 {
   "id": 1,
@@ -48,7 +61,7 @@ Returns full user profile plus computed stats:
 PUT /api/v1/admin/users/<id>
 ```
 
-Updatable fields: `first_name`, `last_name`, `mobile_number`, `gender`, `address`, `role`, `is_active`.
+**Updatable fields:** `first_name`, `last_name`, `mobile_number`, `gender`, `address`, `role`, `is_active`
 
 ### Deactivate User
 
@@ -56,9 +69,18 @@ Updatable fields: `first_name`, `last_name`, `mobile_number`, `gender`, `address
 DELETE /api/v1/admin/users/<id>
 ```
 
-Sets `is_active=False`. Prevents self-deactivation. The user record is preserved for analytics.
+Sets `is_active=False`. Prevents self-deactivation. User record is preserved for analytics.
 
 ### Change Role
+
+```mermaid
+graph LR
+    A["Admin"] -->|POST change-role| B["👤 Target User"]
+    B -->|role = Admin| C["✅ is_staff = true"]
+    B -->|role = User| D["❌ Revoke staff access"]
+
+    style A fill:#e3f5fe,stroke:#0277bd
+```
 
 ```
 POST /api/v1/admin/change-role
@@ -67,9 +89,22 @@ POST /api/v1/admin/change-role
 
 Valid roles: `Admin`, `User`. Changing to Admin automatically grants `is_staff` and `is_superuser`.
 
-## Route Analytics
+---
 
-All analytics endpoints support common query filters:
+## 📊 Route Analytics
+
+### Common Query Filters
+
+```mermaid
+graph LR
+    A["📋 Query Filters"] --> B["source<br/>text | map"]
+    A --> C["status<br/>success | failed"]
+    A --> D["filter<br/>1-6 or name"]
+    A --> E["from_date<br/>YYYY-MM-DD"]
+    A --> F["to_date<br/>YYYY-MM-DD"]
+
+    style A fill:#e3f5fe,stroke:#0277bd
+```
 
 | Parameter | Values | Description |
 |-----------|--------|-------------|
@@ -119,8 +154,7 @@ Returns aggregate statistics:
 GET /api/v1/admin/analytics/routes/top-routes?limit=10
 ```
 
-Returns most requested origin→destination pairs:
-
+**Response:**
 ```json
 {
   "top_routes": [
@@ -141,8 +175,7 @@ Returns most requested origin→destination pairs:
 GET /api/v1/admin/analytics/routes/filters
 ```
 
-Returns the top-used filter with its statistics:
-
+**Response:**
 ```json
 {
   "filter": {
@@ -161,8 +194,7 @@ Returns the top-used filter with its statistics:
 GET /api/v1/admin/analytics/routes/unresolved
 ```
 
-Returns failed query analysis:
-
+**Response:**
 ```json
 {
   "unresolved_reasons": [
@@ -182,7 +214,7 @@ Returns failed query analysis:
 GET /api/v1/admin/analytics/routes/query
 ```
 
-The most flexible analytics endpoint. Supports composable queries:
+**The most flexible analytics endpoint.** Supports composable queries:
 
 | Parameter | Description |
 |-----------|-------------|
@@ -193,12 +225,14 @@ The most flexible analytics endpoint. Supports composable queries:
 | `limit` | Page size (1-200) |
 | `offset` | Page offset |
 
-Example:
+**Example:**
 ```
 GET /api/v1/admin/analytics/routes/query?metrics=requests,success_rate_percent&group_by=day&sort=day&order=asc&limit=30
 ```
 
-## User Analytics
+---
+
+## 👤 User Analytics
 
 ### User Overview
 
@@ -206,8 +240,7 @@ GET /api/v1/admin/analytics/routes/query?metrics=requests,success_rate_percent&g
 GET /api/v1/admin/analytics/users/overview
 ```
 
-Returns user growth and activity data:
-
+**Response:**
 ```json
 {
   "totals": {
@@ -233,7 +266,9 @@ Returns user growth and activity data:
 }
 ```
 
-## Feedback Analytics
+---
+
+## ⭐ Feedback Analytics
 
 ### Feedback List
 
@@ -241,8 +276,7 @@ Returns user growth and activity data:
 GET /api/v1/admin/analytics/feedback?min_rating=3&from_date=2024-01-01&limit=20
 ```
 
-Returns paginated, filterable feedback:
-
+**Response:**
 ```json
 {
   "feedback": [
@@ -260,7 +294,7 @@ Returns paginated, filterable feedback:
 }
 ```
 
-Filters: `min_rating`, `max_rating`, `user_id`, `from_date`, `to_date`
+**Filters:** `min_rating`, `max_rating`, `user_id`, `from_date`, `to_date`
 
 ### Feedback Summary
 
@@ -268,8 +302,7 @@ Filters: `min_rating`, `max_rating`, `user_id`, `from_date`, `to_date`
 GET /api/v1/admin/analytics/feedback/summary
 ```
 
-Returns aggregate feedback statistics:
-
+**Response:**
 ```json
 {
   "total_feedback": 250,
@@ -283,3 +316,21 @@ Returns aggregate feedback statistics:
   }
 }
 ```
+
+---
+
+## 📈 Rating Distribution
+
+```mermaid
+graph LR
+    A["⭐ Rating Distribution"] --> B["⭐⭐⭐⭐⭐ 130"]
+    A --> C["⭐⭐⭐⭐ 80"]
+    A --> D["⭐⭐⭐ 25"]
+    A --> E["⭐⭐ 10"]
+    A --> F["⭐ 5"]
+
+    style A fill:#e3f5fe,stroke:#0277bd
+    style C fill:#e8f5e9,stroke:#2e7d32
+```
+
+Average rating: **4.2** based on 250 feedback entries.
