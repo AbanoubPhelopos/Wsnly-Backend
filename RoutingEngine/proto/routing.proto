@@ -62,4 +62,5 @@ message RouteSegment {
   int32 num_stops = 6;
   int32 distance_meters = 7;
   int32 duration_seconds = 8;
+  repeated Point polyline = 9;
 }

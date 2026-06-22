@@ -9,6 +9,8 @@ ROUTE_FILTER_ENUM_CHOICES = [
     (5, "microbus_only"),
     (6, "metro_only"),
 ]
+FILTER_ENUM_TO_PREFERENCE = {value: name for value, name in ROUTE_FILTER_ENUM_CHOICES}
+FILTER_PREFERENCE_TO_ENUM = {name: value for value, name in ROUTE_FILTER_ENUM_CHOICES}
 ROUTE_FILTER_HELP_TEXT = (
     "Route filter enum: 1=optimal, 2=fastest, 3=cheapest, "
     "4=bus_only, 5=microbus_only, 6=metro_only"
@@ -33,60 +35,6 @@ class RouteRequestSerializer(serializers.Serializer):
     )
 
 
-class TextRouteRequestSerializer(serializers.Serializer):
-    text = serializers.CharField()
-    filter = serializers.ChoiceField(
-        choices=ROUTE_FILTER_ENUM_CHOICES,
-        required=False,
-        default=1,
-        help_text=ROUTE_FILTER_HELP_TEXT,
-    )
-    current_location = CoordinateSerializer(required=False, allow_null=True)
-
-
-class MapRouteRequestSerializer(serializers.Serializer):
-    origin = CoordinateSerializer()
-    destination = CoordinateSerializer()
-    filter = serializers.ChoiceField(
-        choices=ROUTE_FILTER_ENUM_CHOICES,
-        required=False,
-        default=1,
-        help_text=ROUTE_FILTER_HELP_TEXT,
-    )
-
-
-class RoutePointSerializer(serializers.Serializer):
-    name = serializers.CharField(allow_null=True, required=False)
-    lat = serializers.FloatField()
-    lon = serializers.FloatField()
-
-
-class RouteStepLocationSerializer(serializers.Serializer):
-    lat = serializers.FloatField()
-    lon = serializers.FloatField()
-
-
-class RouteStepSerializer(serializers.Serializer):
-    instruction = serializers.CharField()
-    distance_meters = serializers.FloatField()
-    duration_seconds = serializers.FloatField()
-    type = serializers.CharField()
-    line_name = serializers.CharField(allow_blank=True)
-    start_location = RouteStepLocationSerializer()
-    end_location = RouteStepLocationSerializer()
-
-
-class RouteBodySerializer(serializers.Serializer):
-    total_distance_meters = serializers.FloatField()
-    total_duration_seconds = serializers.FloatField()
-    steps = RouteStepSerializer(many=True)
-
-
-class RouteMetaSerializer(serializers.Serializer):
-    intent = serializers.CharField()
-    step_count = serializers.IntegerField()
-
-
 class RouteQueryPointSerializer(serializers.Serializer):
     lat = serializers.FloatField()
     lon = serializers.FloatField()
@@ -103,6 +51,11 @@ class RouteOptionSegmentLocationSerializer(serializers.Serializer):
     name = serializers.CharField()
 
 
+class PolylinePointSerializer(serializers.Serializer):
+    lat = serializers.FloatField()
+    lon = serializers.FloatField()
+
+
 class RouteOptionSegmentSerializer(serializers.Serializer):
     startLocation = RouteOptionSegmentLocationSerializer()
     endLocation = RouteOptionSegmentLocationSerializer()
@@ -110,6 +63,7 @@ class RouteOptionSegmentSerializer(serializers.Serializer):
     numStops = serializers.IntegerField()
     distanceMeters = serializers.IntegerField()
     durationSeconds = serializers.IntegerField()
+    polyline = PolylinePointSerializer(many=True, required=False, default=[])
 
 
 class RouteOptionSerializer(serializers.Serializer):
@@ -223,3 +177,29 @@ class RouteHistoryItemSerializer(serializers.Serializer):
     estimated_fare = serializers.FloatField(allow_null=True)
     walk_distance_meters = serializers.FloatField(allow_null=True)
     created_at = serializers.DateTimeField()
+
+
+class AdminUserDetailSerializer(serializers.Serializer):
+    id = serializers.IntegerField()
+    email = serializers.EmailField()
+    first_name = serializers.CharField()
+    last_name = serializers.CharField()
+    mobile_number = serializers.CharField()
+    gender = serializers.CharField(allow_null=True)
+    address = serializers.CharField(allow_null=True)
+    role = serializers.CharField()
+    is_active = serializers.BooleanField()
+    date_joined = serializers.DateTimeField()
+    total_routes = serializers.IntegerField()
+    saved_locations_count = serializers.IntegerField()
+    favorite_routes_count = serializers.IntegerField()
+
+
+class AdminUserUpdateSerializer(serializers.Serializer):
+    first_name = serializers.CharField(required=False)
+    last_name = serializers.CharField(required=False)
+    mobile_number = serializers.CharField(required=False)
+    gender = serializers.CharField(required=False, allow_null=True, allow_blank=True)
+    address = serializers.CharField(required=False, allow_null=True, allow_blank=True)
+    role = serializers.CharField(required=False)
+    is_active = serializers.BooleanField(required=False)

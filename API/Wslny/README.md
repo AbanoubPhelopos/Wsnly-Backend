@@ -1,119 +1,257 @@
 # Wslny Runtime Service
 
-This folder contains the runnable Django service for Wslny API.
+<!-- Badges -->
+![Django](https://img.shields.io/badge/django-4.2-green)
+![Python](https://img.shields.io/badge/python-3.11+-blue)
+![DRF](https://img.shields.io/badge/DRF-3.14-blue)
+![Gunicorn](https://img.shields.io/badge/gunicorn-20.x-green)
 
-## Responsibilities
+This folder contains the **runnable Django service** for the Wslny API.
 
-- HTTP API for authentication, routing, and admin features.
-- gRPC clients for `Ai-Service` and `RoutingEngine`.
-- Route orchestration logic for text and map modes.
-- Route history persistence for analytics.
-- Route filter selection and fare estimation.
-- User route history endpoint.
-- OpenAPI/Swagger documentation.
+---
 
-## Communication Design
+## 🎯 Responsibilities
 
-```text
-HTTP Client
-   |
-   v
-RouteOrchestratorView (Django)
-   |---- gRPC ----> Ai-Service (text only)
-   |---- gRPC ----> RoutingEngine (text + map)
-   |
-   +---- PostgreSQL (route history + users)
+- HTTP API for authentication, routing, transit data, user features, and admin analytics
+- gRPC clients for `Ai-Service` and `RoutingEngine` (thread-safe singletons)
+- Route orchestration for text and map modes
+- Route history and feedback persistence
+- Fare estimation (metro tiered, bus/microbus per-ride)
+- GTFS transit data service (cached CSV reader)
+- OpenAPI/Swagger documentation via drf-spectacular
+
+---
+
+## 🏗️ Architecture Within This Service
+
+```mermaid
+graph TD
+    subgraph Presentation
+        V["📡 Views<br/>orchestrator, auth_views,<br/>admin_views, transit_views"]
+        S["⚙️ Settings<br/>Environment-driven config"]
+        U["🔗 URL Routing<br/>root_urls.py"]
+        Sch["📋 Schemas<br/>Shared serializers + enums"]
+    end
+
+    subgraph Core
+        App["🏛️ Application<br/>Admin, Auth, Transit services"]
+        Dom["📐 Domain<br/>Constants, Errors"]
+    end
+
+    subgraph Infrastructure
+        Grpc["📡 gRPC Clients<br/>Thread-safe singletons"]
+        ORM["🗄️ Django ORM<br/>Identity, History models"]
+    end
+
+    V --> S
+    V --> U
+    V --> Sch
+    V --> App
+    V --> Grpc
+    App --> Dom
+    Grpc --> ORM
+
+    style V fill:#e1f5fe
+    style App fill:#e8f5e9
+    style Grpc fill:#fff3e0
 ```
 
-## Key Files
+### Directory Structure
 
-- `src/Presentation/views/orchestrator.py`: text/map orchestration and error mapping.
-- `src/Infrastructure/GrpcClients/`: AI and routing gRPC adapters.
-- `src/Infrastructure/History/models.py`: persisted route history.
-- `src/Infrastructure/History/migrations/0002_routehistory_preference_and_selection_fields.py`: request and analytics metadata fields.
-- `src/Infrastructure/History/migrations/0003_backfill_has_result_for_existing_rows.py`: historical data backfill for analytics quality.
-- `src/Presentation/views/admin_views.py`: analytics APIs.
-- `src/Presentation/settings.py`: JWT, gRPC targets, OpenAPI config.
+```
+src/
+├── Core/                          # Business logic (no framework dependencies)
+│   ├── Application/               # Use cases (CQRS pattern)
+│   │   ├── Admin/                 # Analytics commands & queries
+│   │   ├── Authentication/        # Register, login, OAuth handlers
+│   │   ├── Transit/               # GTFS data service (cached CSV reader)
+│   │   └── Common/                # CQRS interfaces (ICommand, IQuery), Result type
+│   └── Domain/                    # Domain models, constants, errors
+│       ├── Constants/             # Roles enum (Admin, User)
+│       └── Errors/                # Typed domain errors
+├── Infrastructure/                # External concerns
+│   ├── GrpcClients/               # Thread-safe gRPC client singletons
+│   │   ├── __init__.py            # Lazy initialization with error capture
+│   │   ├── ai_client.py           # AI service adapter
+│   │   ├── routing_client.py      # Routing engine adapter + polyline parsing
+│   │   └── stubs/                 # Auto-generated protobuf stubs
+│   ├── History/                   # RouteHistory, RouteFeedback models
+│   └── Identity/                  # User, SavedLocation, FavoriteRoute, UserPreferences
+└── Presentation/                  # API layer
+    ├── settings.py               # All config driven by environment variables
+    ├── root_urls.py              # Single ROOT_URLCONF for all endpoints
+    ├── schemas.py                # Shared serializers + filter enum constants
+    ├── permissions.py            # IsAdminUser permission class
+    ├── logging_formatter.py     # JSON structured logging formatter
+    └── views/                    # API view classes
+```
 
-## Environment Variables
+---
 
-- `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `DB_HOST`, `DB_PORT`
-- `AI_GRPC_HOST`, `AI_GRPC_PORT`, `AI_GRPC_TIMEOUT_SECONDS`
-- `ROUTING_GRPC_HOST`, `ROUTING_GRPC_PORT`, `ROUTING_GRPC_TIMEOUT_SECONDS`
-- `FARE_BUS_FIXED`
-- `FARE_METRO_UP_TO_9`, `FARE_METRO_UP_TO_16`, `FARE_METRO_UP_TO_23`, `FARE_METRO_ABOVE_23`
-- `FARE_TRANSFER_PENALTY`
-- `ROUTE_LONG_WALK_THRESHOLD_METERS`
+## 🔧 Environment Variables
 
-## Local/Container Startup
+### Database
 
-From repository root (recommended):
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `DB_NAME` | `wslny` | PostgreSQL database name |
+| `DB_USER` | `postgres` | Database user |
+| `DB_PASSWORD` | `postgres` | Database password |
+| `DB_HOST` | `db` | Database host |
+| `DB_PORT` | `5432` | Database port |
+| `DB_CONN_MAX_AGE` | `60` | Persistent connection lifetime (seconds) |
+
+### gRPC Services
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `AI_GRPC_HOST` | `ai-service` | AI service gRPC host |
+| `AI_GRPC_PORT` | `50052` | AI service gRPC port |
+| `AI_GRPC_TIMEOUT_SECONDS` | `120.0` | AI service timeout |
+| `ROUTING_GRPC_HOST` | `routing-engine` | Routing engine gRPC host |
+| `ROUTING_GRPC_PORT` | `50051` | Routing engine gRPC port |
+| `ROUTING_GRPC_TIMEOUT_SECONDS` | `120.0` | Routing engine timeout |
+
+### Cache
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `REDIS_URL` | `redis://redis:6379/0` | Redis connection URL |
+| `GTFS_CACHE_TIMEOUT` | `86400` | GTFS cache TTL (seconds) |
+| `ROUTE_CACHE_TIMEOUT` | `300` | Route result cache TTL (seconds) |
+
+### Fare Configuration
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `FARE_BUS_PER_RIDE` | `20` | Bus fare per ride (EGP) |
+| `FARE_MICROBUS_PER_RIDE` | `10` | Microbus fare per ride (EGP) |
+| `FARE_METRO_UP_TO_9` | `8` | Metro fare for ≤9 stops |
+| `FARE_METRO_UP_TO_16` | `10` | Metro fare for 10-16 stops |
+| `FARE_METRO_UP_TO_23` | `15` | Metro fare for 17-23 stops |
+| `FARE_METRO_ABOVE_39` | `20` | Metro fare for 40+ stops |
+
+### Security
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `DJANGO_SECRET_KEY` | — | Django secret key (REQUIRED in production) |
+| `DEBUG` | `True` | Debug mode |
+| `ALLOWED_HOSTS` | `*` | Comma-separated allowed hosts |
+| `CORS_ALLOWED_ORIGINS` | `""` | Comma-separated allowed origins (empty = allow all) |
+| `ADMIN_PASSWORD` | — | Initial admin password (seeded on startup) |
+
+### Server
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `GUNICORN_WORKERS` | `4` | Number of Gunicorn workers |
+| `GUNICORN_THREADS` | `2` | Threads per worker |
+| `GUNICORN_TIMEOUT` | `120` | Worker timeout (seconds) |
+| `LOG_LEVEL` | `INFO` | Root log level |
+| `APP_LOG_LEVEL` | `INFO` | Application log level |
+
+---
+
+## 🚀 Startup
+
+**From repository root (recommended):**
 
 ```bash
 docker compose up --build
 ```
 
-Or run API only from this folder after dependencies + database are ready:
+The `entrypoint.sh` script:
+1. Generates gRPC Python stubs from proto files
+2. Runs database migrations
+3. Seeds admin user (email: `admin@wslny.com`, password from `ADMIN_PASSWORD` env var)
+4. Starts Gunicorn
+
+### API Docs
+
+| Resource | URL |
+|----------|-----|
+| Schema | `http://localhost:8000/api/schema/` |
+| Swagger UI | `http://localhost:8000/api/docs/` |
+
+Use `Bearer <jwt_token>` in Swagger "Authorize" to test protected endpoints.
+
+---
+
+## 🚦 Route Filter Enum
+
+| Value | Name | Description |
+|-------|------|-------------|
+| 1 | `optimal` | Best overall route across all transport modes |
+| 2 | `fastest` | Shortest total duration |
+| 3 | `cheapest` | Lowest estimated fare |
+| 4 | `bus_only` | Uses only bus + walking |
+| 5 | `microbus_only` | Uses only microbus + walking |
+| 6 | `metro_only` | Uses only metro + walking |
+
+---
+
+## 💰 Fare Calculation
+
+| Transport | Method | Cost |
+|-----------|--------|------|
+| **Metro** | Tiered by total metro stops | ≤9 stops: 8 EGP, ≤16: 10 EGP, ≤23: 15 EGP, ≤39: 20 EGP, 40+: 20 EGP |
+| **Bus** | Per ride segment | 20 EGP |
+| **Microbus** | Per ride segment | 10 EGP |
+
+---
+
+## ⚡ Rate Limiting
+
+| User Type | Limit |
+|-----------|-------|
+| Anonymous | 30 requests/minute |
+| Authenticated | 60 requests/minute |
+| Health endpoint | **Exempt** |
+
+---
+
+## 🧪 Client Integration Examples
 
 ```bash
-python manage.py migrate
-python manage.py runserver 0.0.0.0:8000
-```
+# Health check
+curl http://localhost:8000/api/health
 
-## API Docs
-
-- Schema: `/api/schema/`
-- Swagger UI: `/api/docs/`
-
-Use `Bearer <jwt_token>` in Swagger Authorize to test protected endpoints.
-
-## Admin Analytics
-
-- Generic analytics endpoint: `GET /api/admin/analytics/routes/query`
-- Supports reusable filters (`source`, `status`, `filter`, `from_date`, `to_date`) and
-  composable query options (`metrics`, `group_by`, `sort`, `order`, `limit`, `offset`).
-- Returns consistent metadata (`meta`) and validates invalid analytics query options
-  with `400 INVALID_ANALYTICS_QUERY` details.
-- `GET /api/admin/analytics/routes/filters` returns only the top-used filter summary after applying query filters.
-
-## Routing Notes
-
-- `POST /api/route` accepts `filter` enum for both text and map requests: `1=optimal`, `2=fastest`, `3=cheapest`, `4=bus_only`, `5=microbus_only`, `6=metro_only`.
-- `POST /api/routes/search` accepts `destination_text`, current location (`current_location` or query params), and `filter`.
-- If destination is not found, search returns a suggestion response with `Do you mean ...` and destination coordinates.
-- `POST /api/routes/search/confirm` accepts confirmed destination coordinates + current location + `filter`, then returns route.
-- `GET /api/routes/metadata` provides filter dictionary, supported modes, query params, and transport methods.
-- Response includes one `route` only (not a routes array).
-- Fare behavior:
-  - metro: tiered by total metro stops
-  - bus: `20 EGP` per bus ride segment
-  - microbus: `10 EGP` per microbus ride segment
-
-## Client Integration Examples
-
-```bash
-curl -X GET "http://localhost:8000/api/routes/metadata" \
-  -H "Authorization: Bearer <jwt_token>"
-```
-
-```bash
-curl -X POST "http://localhost:8000/api/routes/search" \
-  -H "Authorization: Bearer <jwt_token>" \
+# Register
+curl -X POST http://localhost:8000/api/v1/auth/register \
   -H "Content-Type: application/json" \
-  -d '{
-    "destination_text": "العباسية",
-    "current_location": {"lat": 30.1189, "lon": 31.3400},
-    "filter": 1
-  }'
-```
+  -d '{"email":"user@example.com","password":"pass123","first_name":"Test","last_name":"User","mobile_number":"+201234567890"}'
 
-```bash
-curl -X POST "http://localhost:8000/api/routes/search/confirm" \
-  -H "Authorization: Bearer <jwt_token>" \
+# Login
+curl -X POST http://localhost:8000/api/v1/auth/login \
   -H "Content-Type: application/json" \
-  -d '{
-    "current_location": {"lat": 30.1189, "lon": 31.3400},
-    "destination": {"name": "العباسية", "lat": 30.0728, "lon": 31.2841},
-    "filter": 1
-  }'
+  -d '{"email":"user@example.com","password":"pass123"}'
+
+# Route by text
+curl -X POST http://localhost:8000/api/v1/route \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{"text": "عايز اروح العباسيه من مسكن", "filter": 1}'
+
+# Route by coordinates
+curl -X POST http://localhost:8000/api/v1/route \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{"origin":{"lat":30.05,"lon":31.24},"destination":{"lat":30.07,"lon":31.28},"filter":3}'
+
+# Search destination
+curl -X POST http://localhost:8000/api/v1/routes/search \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{"destination_text":"العباسية","current_location":{"lat":30.12,"lon":31.34},"filter":1}'
+
+# Nearby stops
+curl -G "http://localhost:8000/api/v1/stops/nearby?lat=30.05&lon=31.24&radius=500" \
+  -H "Authorization: Bearer <token>"
+
+# Route alternatives
+curl -X POST http://localhost:8000/api/v1/routes/alternatives \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{"origin_lat":30.05,"origin_lon":31.24,"destination_lat":30.07,"destination_lon":31.28}'
 ```

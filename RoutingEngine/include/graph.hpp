@@ -39,6 +39,11 @@ public:
   std::unordered_map<std::string, NodeID> stop_name_map;
   std::unordered_map<std::string, int> route_modes;
   std::unordered_map<std::string, std::string> trip_routes;
+  std::unordered_map<std::string, std::vector<ShapePoint>> shapes_;
+
+  std::vector<ShapePoint>
+  getShapePolyline(const std::string &shape_id, double startLat,
+                   double startLon, double endLat, double endLon) const;
 
 private:
   std::vector<Node> nodes_;
@@ -57,6 +62,7 @@ private:
   void loadTrips(const std::string &filename);
   void loadStops(const std::string &filename);
   void loadStopTimes(const std::string &filename);
+  void loadShapes(const std::string &filename);
   void generateTransferEdges();
 };
 

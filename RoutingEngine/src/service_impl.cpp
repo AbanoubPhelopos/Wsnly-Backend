@@ -39,6 +39,33 @@ bool isIgnorableInternalWalk(const RouteSegment &segment, double distanceMeters,
 
   return distanceMeters < 10.0;
 }
+
+void populatePolyline(const RouteSegment &seg, const Graph &graph,
+                      ::routing::RouteSegment *protoSeg) {
+  if (seg.method == "walking") {
+    auto *pt = protoSeg->add_polyline();
+    pt->set_latitude(seg.startLat);
+    pt->set_longitude(seg.startLon);
+    auto *pt2 = protoSeg->add_polyline();
+    pt2->set_latitude(seg.endLat);
+    pt2->set_longitude(seg.endLon);
+    return;
+  }
+
+  auto tripIt = graph.trips.find(seg.trip_id);
+  if (tripIt == graph.trips.end() || tripIt->second.shape_id.empty())
+    return;
+
+  auto shapePoints = graph.getShapePolyline(
+      tripIt->second.shape_id, seg.startLat, seg.startLon, seg.endLat,
+      seg.endLon);
+
+  for (const auto &sp : shapePoints) {
+    auto *pt = protoSeg->add_polyline();
+    pt->set_latitude(sp.lat);
+    pt->set_longitude(sp.lon);
+  }
+}
 } // namespace
 
 Status RoutingServiceImpl::GetRoute(ServerContext *context,
@@ -113,6 +140,8 @@ Status RoutingServiceImpl::GetRoute(ServerContext *context,
 
       int segDuration = toIntSeconds(segDist / segmentSpeed(seg.method));
       segment->set_duration_seconds(segDuration);
+
+      populatePolyline(seg, graph_, segment);
     }
 
     option->set_total_segments(option->segments_size());

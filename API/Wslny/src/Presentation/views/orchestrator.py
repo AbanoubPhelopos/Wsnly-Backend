@@ -1,6 +1,7 @@
 from django.conf import settings
 from difflib import SequenceMatcher
 import grpc
+import logging
 import time
 from uuid import uuid4
 from rest_framework.views import APIView
@@ -16,12 +17,12 @@ from drf_spectacular.utils import (
     inline_serializer,
 )
 from src.Infrastructure.History.models import RouteHistory
-from src.Infrastructure.GrpcClients.ai_client import AiGrpcClient, AiGrpcClientError
-from src.Infrastructure.GrpcClients.routing_client import (
-    RoutingGrpcClient,
-    RoutingGrpcClientError,
-)
+from src.Infrastructure.GrpcClients import get_ai_client, get_routing_client
+from src.Infrastructure.GrpcClients.ai_client import AiGrpcClientError
+from src.Infrastructure.GrpcClients.routing_client import RoutingGrpcClientError
 from src.Presentation.schemas import (
+    FILTER_ENUM_TO_PREFERENCE,
+    FILTER_PREFERENCE_TO_ENUM,
     ROUTE_FILTER_ENUM_CHOICES,
     RouteErrorResponseSerializer,
     RouteHistoryItemSerializer,
@@ -29,41 +30,23 @@ from src.Presentation.schemas import (
     RouteSuccessResponseSerializer,
 )
 
+logger = logging.getLogger(__name__)
+
 
 class RouteOrchestratorView(APIView):
     permission_classes = [IsAuthenticated]
-    FILTER_ENUM_TO_PREFERENCE = {
-        1: RouteHistory.PREFERENCE_OPTIMAL,
-        2: RouteHistory.PREFERENCE_FASTEST,
-        3: RouteHistory.PREFERENCE_CHEAPEST,
-        4: RouteHistory.PREFERENCE_BUS_ONLY,
-        5: RouteHistory.PREFERENCE_MICROBUS_ONLY,
-        6: RouteHistory.PREFERENCE_METRO_ONLY,
-    }
-    FILTER_PREFERENCE_TO_ENUM = {
-        preference: enum_value
-        for enum_value, preference in FILTER_ENUM_TO_PREFERENCE.items()
-    }
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.client_boot_error = None
-        self.ai_client = None
-        self.routing_client = None
-
-        try:
-            self.ai_client = AiGrpcClient(
-                host=settings.AI_GRPC_HOST,
-                port=settings.AI_GRPC_PORT,
-                timeout_seconds=settings.AI_GRPC_TIMEOUT_SECONDS,
-            )
-            self.routing_client = RoutingGrpcClient(
-                host=settings.ROUTING_GRPC_HOST,
-                port=settings.ROUTING_GRPC_PORT,
-                timeout_seconds=settings.ROUTING_GRPC_TIMEOUT_SECONDS,
-            )
-        except RuntimeError as error:
-            self.client_boot_error = str(error)
+        self.ai_client, ai_error = get_ai_client()
+        self.routing_client, routing_error = get_routing_client()
+        if ai_error and routing_error:
+            self.client_boot_error = f"{ai_error}; {routing_error}"
+        elif ai_error:
+            self.client_boot_error = ai_error
+        elif routing_error:
+            self.client_boot_error = routing_error
 
     @staticmethod
     def _parse_coordinates(data):
@@ -123,30 +106,30 @@ class RouteOrchestratorView(APIView):
     def _parse_filter(data):
         raw_filter = data.get("filter", data.get("preference"))
         if raw_filter in (None, ""):
-            return RouteHistory.PREFERENCE_OPTIMAL
+            return "optimal"
 
         if isinstance(raw_filter, str):
             normalized = raw_filter.strip().lower()
             if normalized.isdigit():
                 raw_filter = int(normalized)
             else:
-                if normalized in RouteOrchestratorView.FILTER_PREFERENCE_TO_ENUM:
+                if normalized in FILTER_PREFERENCE_TO_ENUM:
                     return normalized
-                return RouteHistory.PREFERENCE_OPTIMAL
+                return "optimal"
 
         try:
             enum_value = int(raw_filter)
         except (TypeError, ValueError):
-            return RouteHistory.PREFERENCE_OPTIMAL
+            return "optimal"
 
-        return RouteOrchestratorView.FILTER_ENUM_TO_PREFERENCE.get(
+        return FILTER_ENUM_TO_PREFERENCE.get(
             enum_value,
-            RouteHistory.PREFERENCE_OPTIMAL,
+            "optimal",
         )
 
     @staticmethod
     def _filter_to_enum(route_filter):
-        return RouteOrchestratorView.FILTER_PREFERENCE_TO_ENUM.get(route_filter, 1)
+        return FILTER_PREFERENCE_TO_ENUM.get(route_filter, 1)
 
     @staticmethod
     def _metro_fare_by_stops(stops_count):
@@ -211,38 +194,34 @@ class RouteOrchestratorView(APIView):
             fare = option.get("estimatedFare")
             return float(fare if fare is not None else 10**9), duration_key(option)
 
-        if route_filter == RouteHistory.PREFERENCE_FASTEST:
+        if route_filter == "fastest":
             selected = min(found_routes, key=duration_key)
-        elif route_filter == RouteHistory.PREFERENCE_CHEAPEST:
+        elif route_filter == "cheapest":
             selected = min(found_routes, key=cheapest_key)
-        elif route_filter == RouteHistory.PREFERENCE_BUS_ONLY:
+        elif route_filter == "bus_only":
+            selected = next(
+                (option for option in found_routes if option.get("type") == "bus_only"),
+                None,
+            )
+        elif route_filter == "microbus_only":
             selected = next(
                 (
                     option
                     for option in found_routes
-                    if option.get("type") == RouteHistory.PREFERENCE_BUS_ONLY
+                    if option.get("type") == "microbus_only"
                 ),
                 None,
             )
-        elif route_filter == RouteHistory.PREFERENCE_MICROBUS_ONLY:
+        elif route_filter == "metro_only":
             selected = next(
                 (
                     option
                     for option in found_routes
-                    if option.get("type") == RouteHistory.PREFERENCE_MICROBUS_ONLY
+                    if option.get("type") == "metro_only"
                 ),
                 None,
             )
-        elif route_filter == RouteHistory.PREFERENCE_METRO_ONLY:
-            selected = next(
-                (
-                    option
-                    for option in found_routes
-                    if option.get("type") == RouteHistory.PREFERENCE_METRO_ONLY
-                ),
-                None,
-            )
-        elif route_filter == RouteHistory.PREFERENCE_OPTIMAL:
+        elif route_filter == "optimal":
             selected = min(
                 found_routes,
                 key=lambda option: (
@@ -378,7 +357,7 @@ class RouteOrchestratorView(APIView):
         routing_latency_ms,
         total_latency_ms,
         request_id=None,
-        preference=RouteHistory.PREFERENCE_OPTIMAL,
+        preference=FILTER_ENUM_TO_PREFERENCE.get(1, "optimal"),
         selected_route_type=None,
         selected_route=None,
         unresolved_reason=None,
@@ -392,6 +371,28 @@ class RouteOrchestratorView(APIView):
             walk_distance,
             has_result,
         ) = self._extract_history_summary(selected_route)
+
+        logger.info(
+            "Route request completed",
+            extra={
+                "extra_fields": {
+                    "request_id": request_id,
+                    "user_id": user.id if user else None,
+                    "source_type": source_type,
+                    "status": status_value,
+                    "preference": preference,
+                    "has_result": has_result,
+                    "error_code": error_code,
+                    "total_latency_ms": round(total_latency_ms, 2)
+                    if total_latency_ms
+                    else None,
+                    "ai_latency_ms": round(ai_latency_ms, 2) if ai_latency_ms else None,
+                    "routing_latency_ms": round(routing_latency_ms, 2)
+                    if routing_latency_ms
+                    else None,
+                }
+            },
+        )
 
         RouteHistory.objects.create(
             user=user,
@@ -497,7 +498,7 @@ class RouteOrchestratorView(APIView):
                 request_id=request_id,
                 source_type=RouteHistory.SOURCE_TEXT,
                 input_text=request.data.get("text"),
-                preference=RouteHistory.PREFERENCE_OPTIMAL,
+                preference=FILTER_ENUM_TO_PREFERENCE.get(1, "optimal"),
                 from_data=None,
                 to_data=None,
                 route_result=None,
@@ -523,7 +524,7 @@ class RouteOrchestratorView(APIView):
                 request_id=request_id,
                 source_type=RouteHistory.SOURCE_TEXT,
                 input_text=request.data.get("text"),
-                preference=RouteHistory.PREFERENCE_OPTIMAL,
+                preference=FILTER_ENUM_TO_PREFERENCE.get(1, "optimal"),
                 from_data=None,
                 to_data=None,
                 route_result=None,
@@ -1134,12 +1135,36 @@ class RouteSearchView(RouteOrchestratorView):
                 "Routing service client is not configured.",
             )
 
-        route_result = self.routing_client.get_route(
-            from_data["lat"],
-            from_data["lon"],
-            to_data["lat"],
-            to_data["lon"],
-        )
+        try:
+            route_result = self.routing_client.get_route(
+                from_data["lat"],
+                from_data["lon"],
+                to_data["lat"],
+                to_data["lon"],
+            )
+        except RoutingGrpcClientError as error:
+            http_status, error_code = self._map_routing_error(error)
+            self._record_history(
+                request=request,
+                request_id=request_id,
+                source_type=source_type,
+                input_text=destination_text,
+                preference=route_filter,
+                from_data=from_data,
+                to_data=to_data,
+                route_result=None,
+                status_value=RouteHistory.STATUS_FAILED,
+                error_code=error_code,
+                error_message=error.details,
+                selected_route_type=None,
+                unresolved_reason="routing_error",
+                ai_latency_ms=None,
+                routing_latency_ms=None,
+                total_latency_ms=None,
+            )
+            return self._error_response(
+                request_id, http_status, error_code, error.details
+            )
         route_result, selected_route = self._select_route(route_result, route_filter)
         if selected_route is None:
             self._record_history(
