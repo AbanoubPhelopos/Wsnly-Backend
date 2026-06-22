@@ -45,6 +45,8 @@ services:
     container_name: ai-service
     ports:
       - "50052:50052"
+    env_file:
+      - .env
     environment:
       - GOOGLE_MAPS_API_KEY=${GOOGLE_MAPS_API_KEY}
     depends_on:
@@ -63,6 +65,8 @@ services:
     container_name: wslny-api
     ports:
       - "8000:8000"
+    env_file:
+      - .env
     environment:
       - DB_NAME=wslny
       - DB_USER=postgres
