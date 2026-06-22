@@ -208,12 +208,6 @@ class UserAnalyticsOverviewView(APIView):
 
         users_with_routes = RouteHistory.objects.values("user").distinct().count()
 
-        avg_routes_result = RouteHistory.objects.aggregate(
-            avg=Avg(
-                Count("id"),
-            )
-        )
-
         total_routes = RouteHistory.objects.count()
         avg_routes_per_user = (
             round(total_routes / total_users, 2) if total_users else 0.0

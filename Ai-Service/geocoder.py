@@ -24,8 +24,19 @@ class GoogleMapsGeocoder:
             logger.warning("No Google Maps API Key provided. Geocoding will fail.")
             self.client = None
         else:
-            self.client = googlemaps.Client(key=api_key)
-            logger.info("Google Maps Client initialized.")
+            try:
+                self.client = googlemaps.Client(key=api_key)
+                logger.info("Google Maps Client initialized.")
+            except ValueError as exc:
+                # The library rejects malformed / non-Maps keys with ValueError
+                # at construction time. Don't crash the container — surface a
+                # clear warning and let per-request geocoding fail gracefully.
+                logger.error(
+                    "Invalid GOOGLE_MAPS_API_KEY (%s). Geocoding will be disabled "
+                    "until a valid key is provided.",
+                    exc,
+                )
+                self.client = None
 
         self.cache = {}
 
