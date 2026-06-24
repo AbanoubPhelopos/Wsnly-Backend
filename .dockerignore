@@ -12,3 +12,4 @@ env.bak/
 venv.bak/
 API/
 Ai-Service/tests/
+Ai-Service/TransitModel/model.safetensors
