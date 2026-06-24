@@ -70,57 +70,98 @@ class GoogleMapsGeocoder:
         Resolves a location name to (latitude, longitude).
         Returns None if not found or error.
         """
-        if not self.client:
-            logger.error("Google Maps Client not initialized.")
-            return None
-
         # Check cache
         if location_name in self.cache:
             logger.info(f"Cache hit for '{location_name}'")
             return self.cache[location_name]
 
+        # 1. Try Google Maps first if client is initialized
+        if self.client:
+            try:
+                # Egypt bias + Cairo-focused fallback query.
+                primary_results = self.client.geocode(
+                    location_name,
+                    components={"country": "EG"},
+                    language="ar",
+                )
+
+                best_result = self._pick_best_result(primary_results)
+
+                # If first query doesn't return Cairo-biased point, try adding Cairo context.
+                if best_result:
+                    location = best_result.get("geometry", {}).get("location", {})
+                    lat = location.get("lat")
+                    lng = location.get("lng")
+                    if (
+                        lat is not None
+                        and lng is not None
+                        and not self._is_in_cairo_bounds(lat, lng)
+                    ):
+                        cairo_query = f"{location_name}, القاهرة, مصر"
+                        cairo_results = self.client.geocode(
+                            cairo_query,
+                            components={"country": "EG"},
+                            language="ar",
+                        )
+                        cairo_best = self._pick_best_result(cairo_results)
+                        if cairo_best:
+                            best_result = cairo_best
+
+                if best_result:
+                    location = best_result["geometry"]["location"]
+                    lat = location["lat"]
+                    lng = location["lng"]
+
+                    logger.info(f"Geocoded '{location_name}' to ({lat}, {lng}) via Google Maps")
+                    self.cache[location_name] = (lat, lng)
+                    return (lat, lng)
+            except Exception as e:
+                logger.error(f"Google Maps geocoding error for '{location_name}': {e}")
+
+        # 2. Fallback to Nominatim (OpenStreetMap) if Google Maps is not available or fails
+        logger.info(f"Attempting Nominatim fallback for '{location_name}'...")
         try:
-            # Egypt bias + Cairo-focused fallback query.
-            primary_results = self.client.geocode(
-                location_name,
-                components={"country": "EG"},
-                language="ar",
+            import urllib.request
+            import urllib.parse
+            import json
+
+            # Bias the search query for Cairo, Egypt
+            query_str = f"{location_name}, Cairo, Egypt" if "القاهرة" not in location_name else location_name
+            query = urllib.parse.urlencode({
+                'q': query_str,
+                'format': 'json',
+                'countrycodes': 'eg',
+                'limit': 3
+            })
+            url = f"https://nominatim.openstreetmap.org/search?{query}"
+            
+            req = urllib.request.Request(
+                url,
+                headers={'User-Agent': 'WslnyApp/1.0 (contact@wslny.com)'}
             )
-
-            best_result = self._pick_best_result(primary_results)
-
-            # If first query doesn't return Cairo-biased point, try adding Cairo context.
-            if best_result:
-                location = best_result.get("geometry", {}).get("location", {})
-                lat = location.get("lat")
-                lng = location.get("lng")
-                if (
-                    lat is not None
-                    and lng is not None
-                    and not self._is_in_cairo_bounds(lat, lng)
-                ):
-                    cairo_query = f"{location_name}, القاهرة, مصر"
-                    cairo_results = self.client.geocode(
-                        cairo_query,
-                        components={"country": "EG"},
-                        language="ar",
-                    )
-                    cairo_best = self._pick_best_result(cairo_results)
-                    if cairo_best:
-                        best_result = cairo_best
-
-            if best_result:
-                location = best_result["geometry"]["location"]
-                lat = location["lat"]
-                lng = location["lng"]
-
-                logger.info(f"Geocoded '{location_name}' to ({lat}, {lng})")
-                self.cache[location_name] = (lat, lng)
-                return (lat, lng)
-            else:
-                logger.warning(f"No results found for '{location_name}'")
-                return None
-
+            
+            with urllib.request.urlopen(req, timeout=5) as response:
+                data = json.loads(response.read().decode('utf-8'))
+                
+                best_result = None
+                if data:
+                    # Prefer results inside Cairo bounds
+                    for item in data:
+                        lat = float(item['lat'])
+                        lon = float(item['lon'])
+                        if self._is_in_cairo_bounds(lat, lon):
+                            best_result = (lat, lon)
+                            break
+                    if not best_result:
+                        best_result = (float(data[0]['lat']), float(data[0]['lon']))
+                        
+                if best_result:
+                    logger.info(f"Geocoded '{location_name}' to {best_result} via Nominatim")
+                    self.cache[location_name] = best_result
+                    return best_result
+                else:
+                    logger.warning(f"No Nominatim results found for '{location_name}'")
         except Exception as e:
-            logger.error(f"Geocoding error for '{location_name}': {e}")
-            return None
+            logger.error(f"Nominatim geocoding error for '{location_name}': {e}")
+
+        return None
