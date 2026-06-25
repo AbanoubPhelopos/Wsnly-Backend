@@ -40,6 +40,35 @@ from src.Presentation.schemas import (
 )
 
 
+# Map domain-error codes to HTTP status codes. Anything we don't know
+# falls back to 400 (it means the request itself is malformed, even if
+# we couldn't pinpoint exactly why).
+_ERROR_STATUS_MAP = {
+    "Auth.MissingFields": status.HTTP_400_BAD_REQUEST,
+    "Auth.InvalidEmail": status.HTTP_400_BAD_REQUEST,
+    "Auth.WeakPassword": status.HTTP_400_BAD_REQUEST,
+    "Auth.InvalidCredentials": status.HTTP_401_UNAUTHORIZED,
+    "Auth.UserExists": status.HTTP_409_CONFLICT,
+    "Auth.GoogleTokenInvalid": status.HTTP_400_BAD_REQUEST,
+    "Auth.GoogleAuthFailed": status.HTTP_400_BAD_REQUEST,
+    "User.NotFound": status.HTTP_404_NOT_FOUND,
+    "User.InvalidRole": status.HTTP_400_BAD_REQUEST,
+}
+
+
+def _errors_to_response(errors):
+    """Translate a list of domain ``Error`` objects into a DRF Response
+    with a consistent HTTP status code based on the error code prefix.
+    """
+    payload = {"errors": [{"code": e.code, "message": e.message} for e in errors]}
+    status_code = status.HTTP_400_BAD_REQUEST
+    if errors:
+        status_code = _ERROR_STATUS_MAP.get(
+            errors[0].code, status.HTTP_400_BAD_REQUEST
+        )
+    return Response(payload, status=status_code)
+
+
 class RegisterView(APIView):
     permission_classes = [AllowAny]
 
@@ -96,10 +125,7 @@ class RegisterView(APIView):
                 status=status.HTTP_201_CREATED,
             )
 
-        return Response(
-            {"errors": [vars(e) for e in result.errors]},
-            status=status.HTTP_400_BAD_REQUEST,
-        )
+        return _errors_to_response(result.errors)
 
 
 class LoginView(APIView):
@@ -111,6 +137,7 @@ class LoginView(APIView):
         request=LoginRequestSerializer,
         responses={
             200: OpenApiResponse(response=AuthSuccessResponseSerializer),
+            400: OpenApiResponse(response=ValidationErrorsResponseSerializer),
             401: OpenApiResponse(response=ValidationErrorsResponseSerializer),
         },
         examples=[
@@ -146,10 +173,7 @@ class LoginView(APIView):
                 status=status.HTTP_200_OK,
             )
 
-        return Response(
-            {"errors": [vars(e) for e in result.errors]},
-            status=status.HTTP_401_UNAUTHORIZED,
-        )
+        return _errors_to_response(result.errors)
 
 
 class GoogleLoginView(APIView):
@@ -190,10 +214,7 @@ class GoogleLoginView(APIView):
                 status=status.HTTP_200_OK,
             )
 
-        return Response(
-            {"errors": [vars(e) for e in result.errors]},
-            status=status.HTTP_400_BAD_REQUEST,
-        )
+        return _errors_to_response(result.errors)
 
 
 class ProfileView(APIView):
@@ -212,10 +233,7 @@ class ProfileView(APIView):
         if result.is_success:
             return Response(vars(result.data), status=status.HTTP_200_OK)
 
-        return Response(
-            {"errors": [vars(e) for e in result.errors]},
-            status=status.HTTP_404_NOT_FOUND,
-        )
+        return _errors_to_response(result.errors)
 
     @extend_schema(
         tags=["Auth"],
@@ -336,7 +354,4 @@ class ChangePasswordView(APIView):
                 status=status.HTTP_200_OK,
             )
 
-        return Response(
-            {"errors": [vars(e) for e in result.errors]},
-            status=status.HTTP_400_BAD_REQUEST,
-        )
+        return _errors_to_response(result.errors)

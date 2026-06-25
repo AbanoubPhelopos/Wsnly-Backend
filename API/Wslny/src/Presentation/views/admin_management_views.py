@@ -199,8 +199,33 @@ class UserAnalyticsOverviewView(APIView):
         },
     )
     def get(self, request):
-        from_date = request.query_params.get("from_date")
-        to_date = request.query_params.get("to_date")
+        from django.utils.dateparse import parse_date
+
+        raw_from = request.query_params.get("from_date")
+        raw_to = request.query_params.get("to_date")
+        from_date = parse_date(raw_from) if raw_from else None
+        to_date = parse_date(raw_to) if raw_to else None
+
+        if raw_from and from_date is None:
+            return Response(
+                {
+                    "error": {
+                        "code": "INVALID_QUERY_PARAM",
+                        "message": "from_date must be in YYYY-MM-DD format.",
+                    }
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if raw_to and to_date is None:
+            return Response(
+                {
+                    "error": {
+                        "code": "INVALID_QUERY_PARAM",
+                        "message": "to_date must be in YYYY-MM-DD format.",
+                    }
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         total_users = User.objects.count()
         active_users = User.objects.filter(is_active=True).count()
@@ -314,13 +339,38 @@ class FeedbackAnalyticsView(APIView):
         },
     )
     def get(self, request):
+        from django.utils.dateparse import parse_date
+
         qs = RouteFeedback.objects.select_related("user").all()
 
         min_rating = request.query_params.get("min_rating")
         max_rating = request.query_params.get("max_rating")
         user_id = request.query_params.get("user_id")
-        from_date = request.query_params.get("from_date")
-        to_date = request.query_params.get("to_date")
+        raw_from = request.query_params.get("from_date")
+        raw_to = request.query_params.get("to_date")
+        from_date = parse_date(raw_from) if raw_from else None
+        to_date = parse_date(raw_to) if raw_to else None
+
+        if raw_from and from_date is None:
+            return Response(
+                {
+                    "error": {
+                        "code": "INVALID_QUERY_PARAM",
+                        "message": "from_date must be in YYYY-MM-DD format.",
+                    }
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if raw_to and to_date is None:
+            return Response(
+                {
+                    "error": {
+                        "code": "INVALID_QUERY_PARAM",
+                        "message": "to_date must be in YYYY-MM-DD format.",
+                    }
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         if min_rating:
             try:
@@ -410,10 +460,35 @@ class FeedbackSummaryView(APIView):
         },
     )
     def get(self, request):
+        from django.utils.dateparse import parse_date
+
         qs = RouteFeedback.objects.all()
 
-        from_date = request.query_params.get("from_date")
-        to_date = request.query_params.get("to_date")
+        raw_from = request.query_params.get("from_date")
+        raw_to = request.query_params.get("to_date")
+        from_date = parse_date(raw_from) if raw_from else None
+        to_date = parse_date(raw_to) if raw_to else None
+
+        if raw_from and from_date is None:
+            return Response(
+                {
+                    "error": {
+                        "code": "INVALID_QUERY_PARAM",
+                        "message": "from_date must be in YYYY-MM-DD format.",
+                    }
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if raw_to and to_date is None:
+            return Response(
+                {
+                    "error": {
+                        "code": "INVALID_QUERY_PARAM",
+                        "message": "to_date must be in YYYY-MM-DD format.",
+                    }
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         if from_date:
             qs = qs.filter(created_at__date__gte=from_date)

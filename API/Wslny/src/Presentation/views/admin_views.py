@@ -2,6 +2,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework import serializers
+from rest_framework.exceptions import ValidationError as DRFValidationError
 from django.conf import settings
 from django.db.models import Avg, Count, Q
 from drf_spectacular.utils import (
@@ -127,6 +128,7 @@ class ChangeUserRoleView(APIView):
             200: OpenApiResponse(response=MessageResponseSerializer),
             400: OpenApiResponse(response=ValidationErrorsResponseSerializer),
             403: OpenApiResponse(description="Forbidden"),
+            404: OpenApiResponse(description="User not found"),
         },
     )
     def post(self, request):
@@ -142,10 +144,14 @@ class ChangeUserRoleView(APIView):
                 {"message": "Role updated successfully"}, status=status.HTTP_200_OK
             )
 
-        return Response(
-            {"errors": [vars(e) for e in result.errors]},
-            status=status.HTTP_400_BAD_REQUEST,
-        )
+        # Map domain error codes to the right HTTP status.
+        payload = {"errors": [{"code": e.code, "message": e.message} for e in result.errors]}
+        status_code = status.HTTP_400_BAD_REQUEST
+        if result.errors:
+            code = result.errors[0].code
+            if code == "User.NotFound":
+                status_code = status.HTTP_404_NOT_FOUND
+        return Response(payload, status=status_code)
 
 
 class UserListView(APIView):
@@ -194,6 +200,25 @@ class RouteAnalyticsBaseView(APIView):
             "query": query,
         }
         return envelope
+
+    def dispatch(self, request, *args, **kwargs):
+        """Translate drf-spectacular / DRF query-param validation errors
+        (e.g. malformed ``from_date=not-a-date``) into a clean 400
+        instead of a 500 traceback.
+        """
+        try:
+            return super().dispatch(request, *args, **kwargs)
+        except DRFValidationError as exc:
+            return Response(
+                {
+                    "error": {
+                        "code": "INVALID_QUERY_PARAM",
+                        "message": "One or more query parameters are invalid.",
+                        "details": exc.detail,
+                    }
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
 
 class RouteAnalyticsOverviewView(RouteAnalyticsBaseView):
