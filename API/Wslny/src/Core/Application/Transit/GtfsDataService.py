@@ -15,6 +15,29 @@ def _strip_quotes(value):
     return value.strip().strip('"').strip()
 
 
+def _strip_outer_line_quotes(line):
+    """Strip a single layer of surrounding double quotes that wrap an
+    entire CSV record (a malformed export quirk the GTFS files in this
+    project exhibit). Mirrors the C++ engine's ``stripOuterQuotes`` in
+    ``RoutingEngine/src/graph.cpp`` so the Python loader and the C++
+    routing graph see identical data.
+    """
+    stripped = line.rstrip("\r\n")
+    if len(stripped) >= 2 and stripped.startswith('"') and stripped.endswith('"'):
+        return stripped[1:-1]
+    return stripped
+
+
+def _open_gtfs_csv(path):
+    """Open a GTFS CSV, returning a ``csv.DictReader`` whose lines have
+    any outer wrapping quotes removed. This handles the malformed export
+    format used in ``RoutingEngine/Database/*.csv``.
+    """
+    raw = path.read_text(encoding="utf-8").splitlines()
+    cleaned = [_strip_outer_line_quotes(line) for line in raw if line.strip()]
+    return csv.DictReader(cleaned)
+
+
 @lru_cache(maxsize=1)
 def _load_stops():
     gtfs = _gtfs_path()
@@ -27,22 +50,21 @@ def _load_stops():
         return []
 
     stops = []
-    with open(stops_file, newline="", encoding="utf-8") as f:
-        reader = csv.DictReader(f)
-        for row in reader:
-            try:
-                lat = float(_strip_quotes(row.get("stop_lat", "")))
-                lon = float(_strip_quotes(row.get("stop_lon", "")))
-            except (ValueError, TypeError):
-                continue
-            stops.append(
-                {
-                    "stop_id": _strip_quotes(row.get("stop_id", "")),
-                    "stop_name": _strip_quotes(row.get("stop_name", "")),
-                    "lat": lat,
-                    "lon": lon,
-                }
-            )
+    reader = _open_gtfs_csv(stops_file)
+    for row in reader:
+        try:
+            lat = float(_strip_quotes(row.get("stop_lat", "")))
+            lon = float(_strip_quotes(row.get("stop_lon", "")))
+        except (ValueError, TypeError):
+            continue
+        stops.append(
+            {
+                "stop_id": _strip_quotes(row.get("stop_id", "")),
+                "stop_name": _strip_quotes(row.get("stop_name", "")),
+                "lat": lat,
+                "lon": lon,
+            }
+        )
     return stops
 
 
@@ -58,19 +80,18 @@ def _load_routes():
         return []
 
     routes = []
-    with open(routes_file, newline="", encoding="utf-8") as f:
-        reader = csv.DictReader(f)
-        for row in reader:
-            routes.append(
-                {
-                    "route_id": _strip_quotes(row.get("route_id", "")),
-                    "agency_id": _strip_quotes(row.get("agency_id", "")),
-                    "route_short_name": _strip_quotes(row.get("route_short_name", "")),
-                    "route_type": _strip_quotes(row.get("route_type", "3")),
-                    "route_long_name": _strip_quotes(row.get("route_long_name", "")),
-                    "route_color": _strip_quotes(row.get("route_color", "")),
-                }
-            )
+    reader = _open_gtfs_csv(routes_file)
+    for row in reader:
+        routes.append(
+            {
+                "route_id": _strip_quotes(row.get("route_id", "")),
+                "agency_id": _strip_quotes(row.get("agency_id", "")),
+                "route_short_name": _strip_quotes(row.get("route_short_name", "")),
+                "route_type": _strip_quotes(row.get("route_type", "3")),
+                "route_long_name": _strip_quotes(row.get("route_long_name", "")),
+                "route_color": _strip_quotes(row.get("route_color", "")),
+            }
+        )
     return routes
 
 
@@ -86,17 +107,16 @@ def _load_trips():
         return []
 
     trips = []
-    with open(trips_file, newline="", encoding="utf-8") as f:
-        reader = csv.DictReader(f)
-        for row in reader:
-            trips.append(
-                {
-                    "route_id": _strip_quotes(row.get("route_id", "")),
-                    "service_id": _strip_quotes(row.get("service_id", "")),
-                    "trip_id": _strip_quotes(row.get("trip_id", "")),
-                    "shape_id": _strip_quotes(row.get("shape_id", "")),
-                }
-            )
+    reader = _open_gtfs_csv(trips_file)
+    for row in reader:
+        trips.append(
+            {
+                "route_id": _strip_quotes(row.get("route_id", "")),
+                "service_id": _strip_quotes(row.get("service_id", "")),
+                "trip_id": _strip_quotes(row.get("trip_id", "")),
+                "shape_id": _strip_quotes(row.get("shape_id", "")),
+            }
+        )
     return trips
 
 
@@ -112,20 +132,19 @@ def _load_stop_times():
         return []
 
     entries = []
-    with open(st_file, newline="", encoding="utf-8") as f:
-        reader = csv.DictReader(f)
-        for row in reader:
-            try:
-                seq = int(_strip_quotes(row.get("stop_sequence", "0")))
-            except (ValueError, TypeError):
-                continue
-            entries.append(
-                {
-                    "trip_id": _strip_quotes(row.get("trip_id", "")),
-                    "stop_id": _strip_quotes(row.get("stop_id", "")),
-                    "stop_sequence": seq,
-                }
-            )
+    reader = _open_gtfs_csv(st_file)
+    for row in reader:
+        try:
+            seq = int(_strip_quotes(row.get("stop_sequence", "0")))
+        except (ValueError, TypeError):
+            continue
+        entries.append(
+            {
+                "trip_id": _strip_quotes(row.get("trip_id", "")),
+                "stop_id": _strip_quotes(row.get("stop_id", "")),
+                "stop_sequence": seq,
+            }
+        )
     entries.sort(key=lambda e: (e["trip_id"], e["stop_sequence"]))
     return entries
 
@@ -142,23 +161,22 @@ def _load_shapes():
         return {}
 
     shapes = {}
-    with open(shapes_file, newline="", encoding="utf-8") as f:
-        reader = csv.DictReader(f)
-        for row in reader:
-            try:
-                lat = float(_strip_quotes(row.get("shape_pt_lat", "")))
-                lon = float(_strip_quotes(row.get("shape_pt_lon", "")))
-                seq = int(_strip_quotes(row.get("shape_pt_sequence", "0")))
-            except (ValueError, TypeError):
-                continue
-            shape_id = _strip_quotes(row.get("shape_id", ""))
-            shapes.setdefault(shape_id, []).append(
-                {
-                    "lat": lat,
-                    "lon": lon,
-                    "sequence": seq,
-                }
-            )
+    reader = _open_gtfs_csv(shapes_file)
+    for row in reader:
+        try:
+            lat = float(_strip_quotes(row.get("shape_pt_lat", "")))
+            lon = float(_strip_quotes(row.get("shape_pt_lon", "")))
+            seq = int(_strip_quotes(row.get("shape_pt_sequence", "0")))
+        except (ValueError, TypeError):
+            continue
+        shape_id = _strip_quotes(row.get("shape_id", ""))
+        shapes.setdefault(shape_id, []).append(
+            {
+                "lat": lat,
+                "lon": lon,
+                "sequence": seq,
+            }
+        )
 
     for pts in shapes.values():
         pts.sort(key=lambda p: p["sequence"])

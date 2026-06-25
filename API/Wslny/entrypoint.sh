@@ -13,8 +13,11 @@ python -m grpc_tools.protoc \
   ./protos/routing.proto
 
 # Apply database migrations
+echo "Generating database migrations (if any)..."
+python manage.py makemigrations --noinput || true
+
 echo "Applying database migrations..."
-python manage.py migrate
+python manage.py migrate --noinput
 
 # Seed database
 echo "Seeding database..."
