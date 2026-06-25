@@ -103,8 +103,18 @@ def _resolve_known_coordinates(location_name: str):
 def _extract_with_rules(text: str):
     normalized = _normalize_text(text)
 
+    # ``الى / إلى / الي / إلي / لي / ل / for`` are all valid Egyptian-
+    # Arabic ways of expressing "to". Matching them with a single
+    # alternation is more dialect-friendly than the original hard-coded
+    # ``الى|إلى`` pair.
+    to_sep = r"(?:الى|إلى|الي|إلي|لي|ل)"
+
     patterns = [
-        re.compile(r"^من\s+(?P<from>.+?)\s+(?:الى|إلى)\s+(?P<to>.+)$", re.IGNORECASE),
+        re.compile(rf"^من\s+(?P<from>.+?)\s+{to_sep}\s+(?P<to>.+)$", re.IGNORECASE),
+        re.compile(
+            rf"^(?:عايز|عايزة|عاوزه|اريد|محتاج|حابب)?\s*(?:اروح|اذهب|روح)?\s*(?P<to>.+?)\s+{to_sep}\s+(?P<from>.+)$",
+            re.IGNORECASE,
+        ),
         re.compile(
             r"^(?:عايز|عايزة|عاوزه|اريد|محتاج|حابب)?\s*(?:اروح|اذهب|روح)?\s*(?P<to>.+?)\s+من\s+(?P<from>.+)$",
             re.IGNORECASE,
@@ -152,16 +162,24 @@ def _extract_with_rules(text: str):
         origin = _clean_location_candidate(after_from)
         destination = ""
 
-        if " الى " in before_from:
-            destination = _clean_location_candidate(before_from.split(" الى ")[-1])
-        elif " إلى " in before_from:
-            destination = _clean_location_candidate(before_from.split(" إلى ")[-1])
-        else:
+        for sep in ("الى", "إلى", "الي", "إلي", "لي", "ل"):
+            if f" {sep} " in before_from:
+                destination = _clean_location_candidate(before_from.split(f" {sep} ")[-1])
+                break
+        if not destination:
             tokens = before_from.strip().split()
             destination = _clean_location_candidate(tokens[-1] if tokens else "")
 
         if origin and destination:
             return _apply_alias(origin), _apply_alias(destination)
+
+    # Last resort: bare destination name. The caller (the API
+    # orchestrator) is expected to provide ``current_location`` for the
+    # origin in this case. We use KNOWN_LOCATION_COORDINATES below to
+    # resolve the name without hitting Google Maps.
+    bare = normalized.strip()
+    if bare:
+        return "", _apply_alias(bare)
 
     return "", ""
 
